@@ -69,6 +69,8 @@ class GoogleSheetsClient:
             'Cycling Activity Count', 'Cycling Distance',
             'Strength Activity Count', 'Strength Duration',
             'Cardio Activity Count', 'Cardio Duration',
+            'Swim Activity Count', 'Swim Distance (km)', 'Swim Laps', 'Swim Duration (min)',
+            'Pool Swim Count', 'Open Water Swim Count', 'Average SWOLF', 'Total Strokes',
             'Tennis Activity Count', 'Tennis Activity Duration' # Added Tennis
         ]
         
@@ -120,6 +122,14 @@ class GoogleSheetsClient:
                 metric.strength_duration,
                 metric.cardio_activity_count,
                 metric.cardio_duration,
+                metric.swim_activity_count,
+                metric.swim_distance_km,
+                metric.swim_laps,
+                metric.swim_duration_min,
+                metric.pool_swim_count,
+                metric.open_water_swim_count,
+                metric.avg_swolf,
+                metric.total_strokes,
                 metric.tennis_activity_count, # Added Tennis
                 metric.tennis_activity_duration # Added Tennis
             ]

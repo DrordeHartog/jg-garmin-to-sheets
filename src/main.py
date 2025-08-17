@@ -26,6 +26,8 @@ CSV_HEADERS = [
     "Running Activity Count", "Running Distance (km)", "Cycling Activity Count",
     "Cycling Distance (km)", "Strength Activity Count", "Strength Duration",
     "Cardio Activity Count", "Cardio Duration", # HRV (ms) moved to after Sleep Length
+    "Swim Activity Count", "Swim Distance (km)", "Swim Laps", "Swim Duration (min)",
+    "Pool Swim Count", "Open Water Swim Count", "Average SWOLF", "Total Strokes",
     "Tennis Activity Count", "Tennis Activity Duration"
 ]
 
@@ -56,6 +58,14 @@ HEADER_TO_ATTRIBUTE_MAP = {
     "Strength Duration": "strength_duration",
     "Cardio Activity Count": "cardio_activity_count",
     "Cardio Duration": "cardio_duration",
+    "Swim Activity Count": "swim_activity_count",
+    "Swim Distance (km)": "swim_distance_km",
+    "Swim Laps": "swim_laps",
+    "Swim Duration (min)": "swim_duration_min",
+    "Pool Swim Count": "pool_swim_count",
+    "Open Water Swim Count": "open_water_swim_count",
+    "Average SWOLF": "avg_swolf",
+    "Total Strokes": "total_strokes",
     "HRV (ms)": "overnight_hrv",
     "HRV Status": "hrv_status",
     "Tennis Activity Count": "tennis_activity_count",
