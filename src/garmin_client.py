@@ -359,6 +359,7 @@ class GarminClient:
                 hrv_status=locals().get('hrv_status_value')
             )
 
+
     async def submit_mfa_code(self, mfa_code: str):
         """Submits the MFA code to complete authentication."""
         if not hasattr(self, 'mfa_ticket_dict') or not self.mfa_ticket_dict:
