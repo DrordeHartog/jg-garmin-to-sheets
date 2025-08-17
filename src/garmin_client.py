@@ -198,6 +198,7 @@ class GarminClient:
             swim_count = 0
             swim_distance = 0.0
             swim_duration = 0.0
+            swim_laps_total = 0
             pool_swim = 0
             ows_swim = 0
             swolf_sum = 0.0
@@ -227,9 +228,39 @@ class GarminClient:
                         tennis_duration += activity.get('duration', 0) / 60 # Convert seconds to minutes
                     if 'swim' in type_key or parent_type_id == 17:  # parent id may vary; substring is safer
                         swim_count += 1
-                        swim_distance += activity.get('distance', 0) / 100  # Convert to meters
+                        swim_distance += activity.get('distance', 0) / 1000  # Convert meters to km
                         swim_duration += activity.get('duration', 0) / 60  # Convert seconds to minutes
-                        swim_laps = activity.get
+                        lap_count = activity.get('lapCount')
+                        if lap_count is not None:
+                            swim_laps_total += lap_count
+
+                        # Determine swim type
+                        if 'open' in type_key and 'water' in type_key:
+                            ows_swim += 1
+                        else:
+                            pool_swim += 1
+
+                        # Fetch additional swim details for SWOLF and stroke data
+                        activity_id = activity.get('activityId')
+                        if activity_id:
+                            try:
+                                loop = asyncio.get_event_loop()
+                                details = await loop.run_in_executor(None, self.client.get_activity, activity_id)
+                                summary_dto = details.get('summaryDTO', {}) if details else {}
+
+                                swolf_val = summary_dto.get('avgSwolf') or summary_dto.get('averageSwolf')
+                                if swolf_val is not None:
+                                    swolf_sum += swolf_val
+                                    swolf_n += 1
+
+                                strokes_val = summary_dto.get('totalNumberOfStrokes') or summary_dto.get('totalStrokes')
+                                if strokes_val is not None:
+                                    strokes_total += strokes_val
+
+                                if lap_count is None:
+                                    swim_laps_total += summary_dto.get('numberOfLaps', 0)
+                            except Exception as e:
+                                logger.debug(f"Error fetching swim details for activity {activity_id}: {e}")
             else:
                 logger.warning(f"Activities data for {target_date} is None. Activity metrics will be blank.")
 
@@ -344,6 +375,14 @@ class GarminClient:
                 strength_duration=strength_duration,
                 cardio_activity_count=cardio_count,
                 cardio_duration=cardio_duration,
+                swim_activity_count=swim_count,
+                swim_distance_km=swim_distance,
+                swim_laps=swim_laps_total,
+                swim_duration_min=swim_duration,
+                pool_swim_count=pool_swim,
+                open_water_swim_count=ows_swim,
+                avg_swolf=(swolf_sum / swolf_n) if swolf_n > 0 else None,
+                total_strokes=strokes_total,
                 tennis_activity_count=tennis_count, # Added for Tennis
                 tennis_activity_duration=tennis_duration, # Added for Tennis
                 overnight_hrv=overnight_hrv_value,
