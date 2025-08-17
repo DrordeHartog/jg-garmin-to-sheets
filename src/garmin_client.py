@@ -4,6 +4,7 @@ from typing import Dict, Any, Optional
 import asyncio
 import logging
 import garminconnect
+import json
 from garth.sso import resume_login
 import garth
 from .exceptions import MFARequiredException
@@ -40,6 +41,15 @@ class GarminMetrics:
     tennis_activity_duration: Optional[float] = None
     overnight_hrv: Optional[int] = None
     hrv_status: Optional[str] = None
+    swim_activity_count: Optional[int] = None
+    swim_distance_km: Optional[float] = None
+    swim_laps: Optional[int] = None  # in meters
+    swim_duration_min: Optional[float] = None
+    pool_swim_count: Optional[int] = None
+    open_water_swim_count: Optional[int] = None
+    avg_swolf: Optional[float] = None  # needs activity details
+    total_strokes: Optional[int] = None  # needs activity details
+
 
 class GarminClient:
     def __init__(self, email: str, password: str):
@@ -185,6 +195,14 @@ class GarminClient:
             cardio_duration = 0
             tennis_count = 0
             tennis_duration = 0
+            swim_count = 0
+            swim_distance = 0.0
+            swim_duration = 0.0
+            pool_swim = 0
+            ows_swim = 0
+            swolf_sum = 0.0
+            swolf_n = 0
+            strokes_total = 0
 
             if activities:
                 for activity in activities:
@@ -207,6 +225,11 @@ class GarminClient:
                     elif 'tennis' in type_key: # Added for Tennis
                         tennis_count += 1
                         tennis_duration += activity.get('duration', 0) / 60 # Convert seconds to minutes
+                    if 'swim' in type_key or parent_type_id == 17:  # parent id may vary; substring is safer
+                        swim_count += 1
+                        swim_distance += activity.get('distance', 0) / 100  # Convert to meters
+                        swim_duration += activity.get('duration', 0) / 60  # Convert seconds to minutes
+                        swim_laps = activity.get
             else:
                 logger.warning(f"Activities data for {target_date} is None. Activity metrics will be blank.")
 
