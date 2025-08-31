@@ -38,6 +38,18 @@ class BitwardenClient:
         except FileNotFoundError:
             raise RuntimeError('Bitwarden CLI is not installed. Please install it first.')
     
+    def _check_if_already_authenticated(self) -> bool:
+        """Check if Bitwarden is already unlocked and we can access items."""
+        try:
+            # Check if we can list items without authentication
+            result = subprocess.run(
+                ['bw', 'list', 'items'],
+                capture_output=True, text=True
+            )
+            return result.returncode == 0
+        except Exception:
+            return False
+    
     def authenticate(self) -> bool:
         """
         Authenticate with Bitwarden using passkey.
@@ -49,38 +61,25 @@ class BitwardenClient:
             BitwardenAuthenticationError: If authentication fails
         """
         try:
-            # Try to unlock with passkey
-            logger.info("Authenticating with Bitwarden...")
-            result = subprocess.run(
-                ['bw', 'unlock', '--passwordenv', 'BW_PASSWORD'],
-                capture_output=True, text=True, env=os.environ
+            # First, check if we're already authenticated
+            if self._check_if_already_authenticated():
+                logger.info("Bitwarden is already unlocked and accessible")
+                return True
+            
+            # Check if we have a session key in environment
+            if 'BW_SESSION' in os.environ:
+                self._session_key = os.environ['BW_SESSION']
+                logger.info("Using existing BW_SESSION from environment")
+                return True
+            
+            # If not authenticated, we need to unlock
+            logger.info("Bitwarden is locked. Please unlock it manually first:")
+            logger.info("Run: bw unlock")
+            logger.info("Then run this script again.")
+            
+            raise BitwardenAuthenticationError(
+                "Bitwarden is locked. Please unlock it manually with 'bw unlock' first."
             )
-            
-            if result.returncode == 0:
-                # Extract session key from output
-                for line in result.stdout.split('\n'):
-                    if 'BW_SESSION=' in line:
-                        self._session_key = line.split('=')[1].strip()
-                        logger.info("Successfully authenticated with Bitwarden")
-                        return True
-            
-            # If password env not set, prompt for passkey
-            logger.info("Please authenticate with your Bitwarden passkey...")
-            result = subprocess.run(
-                ['bw', 'unlock'],
-                capture_output=True, text=True, input='\n'
-            )
-            
-            if result.returncode == 0:
-                # Extract session key from output
-                for line in result.stdout.split('\n'):
-                    if 'BW_SESSION=' in line:
-                        self._session_key = line.split('=')[1].strip()
-                        logger.info("Successfully authenticated with Bitwarden")
-                        return True
-            
-            # If we get here, authentication failed
-            raise BitwardenAuthenticationError(f"Authentication failed: {result.stderr}")
             
         except subprocess.CalledProcessError as e:
             raise BitwardenAuthenticationError(f"Bitwarden CLI error: {e}")
@@ -101,18 +100,11 @@ class BitwardenClient:
             BitwardenAuthenticationError: If not authenticated
             BitwardenItemNotFoundError: If item not found
         """
-        if not self._session_key:
-            raise BitwardenAuthenticationError("Not authenticated. Call authenticate() first.")
-        
         try:
-            # Set the session key for this command
-            env = os.environ.copy()
-            env['BW_SESSION'] = self._session_key
-            
             # List all items to find the one we want
             result = subprocess.run(
                 ['bw', 'list', 'items'],
-                capture_output=True, text=True, env=env
+                capture_output=True, text=True
             )
             
             if result.returncode != 0:
@@ -152,9 +144,7 @@ class BitwardenClient:
         """Logout and clear the session key."""
         if self._session_key:
             try:
-                env = os.environ.copy()
-                env['BW_SESSION'] = self._session_key
-                subprocess.run(['bw', 'lock'], capture_output=True, env=env)
+                subprocess.run(['bw', 'lock'], capture_output=True)
                 logger.info("Logged out of Bitwarden")
             except Exception as e:
                 logger.warning(f"Error during logout: {e}")

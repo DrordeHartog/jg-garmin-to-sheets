@@ -241,9 +241,9 @@ class GarminClient:
                     elif 'tennis' in type_key: # Added for Tennis
                         tennis_count += 1
                         tennis_duration += activity.get('duration', 0) / 60 # Convert seconds to minutes
-                    if 'swim' in type_key or parent_type_id == 17:  # parent id may vary; substring is safer
+                    if 'swim' in type_key or (parent_type_id == 26 and type_key == 'lap_swimming'):  # Only actual swim activities
                         swim_count += 1
-                        swim_distance += activity.get('distance', 0) / 100  # Convert to meters
+                        swim_distance += activity.get('distance', 0)  # Distance is already in meters
                         swim_duration += activity.get('duration', 0) / 60  # Convert seconds to minutes
                         swim_laps = activity.get('lapCount', 0)
                         
@@ -259,7 +259,7 @@ class GarminClient:
                         swim_average_hr = activity.get('averageHR', 0)
                         swim_average_strokes_per_length = activity.get('avgStrokes', 0)
                         swim_average_strokes_per_minute = activity.get('averageSwimCadenceInStrokesPerMinute', 0)
-                        avg_swolf = activity.get('avgSwolf', 0)
+                        avg_swolf = activity.get('averageSwolf', 0)
                         total_strokes = activity.get('strokes', 0)
 
             else:
