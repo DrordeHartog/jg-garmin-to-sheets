@@ -26,8 +26,21 @@ CSV_HEADERS = [
     "Running Activity Count", "Running Distance (km)", "Cycling Activity Count",
     "Cycling Distance (km)", "Strength Activity Count", "Strength Duration",
     "Cardio Activity Count", "Cardio Duration", # HRV (ms) moved to after Sleep Length
-    "Tennis Activity Count", "Tennis Activity Duration"
-]
+    "Tennis Activity Count", "Tennis Activity Duration",
+    "Swim Activity Count",
+    "Swim Distance (m)",
+    "Swim Laps",
+    "Swim Duration (min)",
+    "Pool Swim Count",
+    "Open Water Swim Count",
+    "Swim Average Pace per 100m",
+    "Swim Max Pace per 100m",
+    "Swim Average HR",
+    "Swim Max HR",
+    "Swim Average Strokes per Length",
+    "Swim Average Strokes per Minute",
+    "Average SWOLF",
+    "Total Strokes"]
 
 # Mapping from CSV Header to potential GarminMetrics attribute name (adjust if needed)
 # Assuming snake_case for attributes based on Python conventions
@@ -59,7 +72,21 @@ HEADER_TO_ATTRIBUTE_MAP = {
     "HRV (ms)": "overnight_hrv",
     "HRV Status": "hrv_status",
     "Tennis Activity Count": "tennis_activity_count",
-    "Tennis Activity Duration": "tennis_activity_duration"
+    "Tennis Activity Duration": "tennis_activity_duration",
+    "Swim Activity Count": "swim_activity_count",
+    "Swim Distance (m)": "swim_distance_meters",
+    "Swim Laps": "swim_laps",
+    "Swim Duration (min)": "swim_duration_min",
+    "Pool Swim Count": "pool_swim_count",
+    "Open Water Swim Count": "open_water_swim_count",
+    "Swim Average Pace per 100m": "swim_average_pace_per_100m",
+    "Swim Max Pace per 100m": "swim_max_pace_per_100m",
+    "Swim Average HR": "swim_average_hr",
+    "Swim Max HR": "swim_max_hr",
+    "Swim Average Strokes per Length": "swim_average_strokes_per_length",
+    "Swim Average Strokes per Minute": "swim_average_strokes_per_minute",
+    "Average SWOLF": "avg_swolf",
+    "Total Strokes": "total_strokes"
 }
 
 
@@ -399,7 +426,7 @@ async def sync(email: str, password: str, start_date: date, end_date: date, outp
                                     formatted_value = "" # Keep as empty string on error
 
                             row_dict[header] = formatted_value # Assign the formatted string value
-
+                        print(row_dict)
                         writer.writerow(row_dict)
 
                 logger.info(f"Successfully wrote {len(metrics)} rows to {csv_file_path}")

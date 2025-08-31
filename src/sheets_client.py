@@ -120,8 +120,10 @@ class GoogleSheetsClient:
                 metric.strength_duration,
                 metric.cardio_activity_count,
                 metric.cardio_duration,
-                metric.tennis_activity_count, # Added Tennis
-                metric.tennis_activity_duration # Added Tennis
+                metric.swim_activity_count,
+                metric.swim_duration,
+
+
             ]
             rows.append(row)
         

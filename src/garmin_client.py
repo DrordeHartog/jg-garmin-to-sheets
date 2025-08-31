@@ -42,11 +42,17 @@ class GarminMetrics:
     overnight_hrv: Optional[int] = None
     hrv_status: Optional[str] = None
     swim_activity_count: Optional[int] = None
-    swim_distance_km: Optional[float] = None
+    swim_distance_meters: Optional[float] = None
     swim_laps: Optional[int] = None  # in meters
     swim_duration_min: Optional[float] = None
     pool_swim_count: Optional[int] = None
     open_water_swim_count: Optional[int] = None
+    swim_average_pace_per_100m: Optional[float] = None  # needs activity details
+    swim_max_pace_per_100m: Optional[float] = None
+    swim_average_hr: Optional[float] = None  # needs activity details
+    swim_max_hr: Optional[float] = None
+    swim_average_strokes_per_length: Optional[float] = None  # needs activity details
+    swim_average_strokes_per_minute: Optional[float] = None
     avg_swolf: Optional[float] = None  # needs activity details
     total_strokes: Optional[int] = None  # needs activity details
 
@@ -198,11 +204,20 @@ class GarminClient:
             swim_count = 0
             swim_distance = 0.0
             swim_duration = 0.0
+            swim_laps = 0
             pool_swim = 0
             ows_swim = 0
             swolf_sum = 0.0
             swolf_n = 0
             strokes_total = 0
+            swim_average_pace_per_100m = None
+            swim_max_pace_per_100m = None
+            swim_average_hr = None
+            swim_max_hr = None
+            swim_average_strokes_per_length = None
+            swim_average_strokes_per_minute = None
+            avg_swolf = None
+            total_strokes = None
 
             if activities:
                 for activity in activities:
@@ -229,7 +244,23 @@ class GarminClient:
                         swim_count += 1
                         swim_distance += activity.get('distance', 0) / 100  # Convert to meters
                         swim_duration += activity.get('duration', 0) / 60  # Convert seconds to minutes
-                        swim_laps = activity.get
+                        swim_laps = activity.get('lapCount', 0)
+                        
+                        # Fix division by zero issues for pace calculations
+                        avg_speed = activity.get('averageSpeed', 0)
+                        max_speed = activity.get('maxSpeed', 0)
+                        
+                        if avg_speed and avg_speed > 0:
+                            swim_average_pace_per_100m = 100 / avg_speed
+                        if max_speed and max_speed > 0:
+                            swim_max_pace_per_100m = 100 / max_speed
+                        swim_max_hr = activity.get('maxHR', 0)
+                        swim_average_hr = activity.get('averageHR', 0)
+                        swim_average_strokes_per_length = activity.get('avgStrokes', 0)
+                        swim_average_strokes_per_minute = activity.get('averageSwimCadenceInStrokesPerMinute', 0)
+                        avg_swolf = activity.get('avgSwolf', 0)
+                        total_strokes = activity.get('strokes', 0)
+
             else:
                 logger.warning(f"Activities data for {target_date} is None. Activity metrics will be blank.")
 
@@ -347,7 +378,21 @@ class GarminClient:
                 tennis_activity_count=tennis_count, # Added for Tennis
                 tennis_activity_duration=tennis_duration, # Added for Tennis
                 overnight_hrv=overnight_hrv_value,
-                hrv_status=hrv_status_value
+                hrv_status=hrv_status_value,
+                swim_activity_count=swim_count,
+                swim_distance_meters=swim_distance,
+                swim_laps=swim_laps,
+                swim_duration_min=swim_duration,
+                pool_swim_count=pool_swim,
+                open_water_swim_count=ows_swim,
+                swim_average_pace_per_100m=swim_average_pace_per_100m,
+                swim_max_pace_per_100m=swim_max_pace_per_100m,
+                swim_average_hr=swim_average_hr,
+                swim_max_hr=swim_max_hr,
+                swim_average_strokes_per_length=swim_average_strokes_per_length,
+                swim_average_strokes_per_minute=swim_average_strokes_per_minute,
+                avg_swolf=avg_swolf,
+                total_strokes=total_strokes
             )
 
         except Exception as e:
