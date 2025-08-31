@@ -31,24 +31,24 @@ class BitwardenClient:
         """Check if Bitwarden CLI is installed and accessible."""
         try:
             result = subprocess.run(['bw', '--version'], 
-                                  capture_output=True, text=True, check=True)
+                                  capture_output=True, text=True)
+            if result.returncode != 0:
+                raise RuntimeError('Bitwarden CLI is not properly installed')
             logger.info(f"Bitwarden CLI version: {result.stdout.strip()}")
-        except (subprocess.CalledProcessError, FileNotFoundError):
-            raise BitwardenAuthenticationError(
-                "Bitwarden CLI not found. Please install it from: "
-                "https://bitwarden.com/help/cli/"
-            )
+        except FileNotFoundError:
+            raise RuntimeError('Bitwarden CLI is not installed. Please install it first.')
     
     def authenticate(self) -> bool:
         """
         Authenticate with Bitwarden using passkey.
-        Returns True if authentication successful.
+        
+        Returns:
+            bool: True if authentication successful
+            
+        Raises:
+            BitwardenAuthenticationError: If authentication fails
         """
         try:
-            # Check if already authenticated
-            if self._session_key:
-                return True
-            
             # Try to unlock with passkey
             logger.info("Authenticating with Bitwarden...")
             result = subprocess.run(
@@ -58,8 +58,7 @@ class BitwardenClient:
             
             if result.returncode == 0:
                 # Extract session key from output
-                for line in result.stdout.split('
-'):
+                for line in result.stdout.split('\n'):
                     if 'BW_SESSION=' in line:
                         self._session_key = line.split('=')[1].strip()
                         logger.info("Successfully authenticated with Bitwarden")
@@ -69,23 +68,23 @@ class BitwardenClient:
             logger.info("Please authenticate with your Bitwarden passkey...")
             result = subprocess.run(
                 ['bw', 'unlock'],
-                capture_output=True, text=True, input='
-'  # This will prompt for passkey
+                capture_output=True, text=True, input='\n'
             )
             
             if result.returncode == 0:
-                # Extract session key
-                for line in result.stdout.split('
-'):
+                # Extract session key from output
+                for line in result.stdout.split('\n'):
                     if 'BW_SESSION=' in line:
                         self._session_key = line.split('=')[1].strip()
                         logger.info("Successfully authenticated with Bitwarden")
                         return True
             
-            raise BitwardenAuthenticationError("Failed to authenticate with Bitwarden")
+            # If we get here, authentication failed
+            raise BitwardenAuthenticationError(f"Authentication failed: {result.stderr}")
             
+        except subprocess.CalledProcessError as e:
+            raise BitwardenAuthenticationError(f"Bitwarden CLI error: {e}")
         except Exception as e:
-            logger.error(f"Authentication error: {e}")
             raise BitwardenAuthenticationError(f"Authentication failed: {e}")
     
     def get_credentials(self, item_name: str) -> Dict[str, str]:
@@ -93,164 +92,71 @@ class BitwardenClient:
         Retrieve credentials for a specific item from Bitwarden.
         
         Args:
-            item_name: Name of the item in Bitwarden vault
+            item_name (str): The name of the item in Bitwarden
             
         Returns:
-            Dictionary containing username, password, and other fields
+            Dict[str, str]: Dictionary containing username and password
+            
+        Raises:
+            BitwardenAuthenticationError: If not authenticated
+            BitwardenItemNotFoundError: If item not found
         """
-        if not self.authenticate():
-            raise BitwardenAuthenticationError("Authentication required")
+        if not self._session_key:
+            raise BitwardenAuthenticationError("Not authenticated. Call authenticate() first.")
         
         try:
-            # Search for the item
+            # Set the session key for this command
+            env = os.environ.copy()
+            env['BW_SESSION'] = self._session_key
+            
+            # List all items to find the one we want
             result = subprocess.run(
-                ['bw', 'list', 'items', '--search', item_name],
-                capture_output=True, text=True, check=True,
-                env={'BW_SESSION': self._session_key}
+                ['bw', 'list', 'items'],
+                capture_output=True, text=True, env=env
             )
+            
+            if result.returncode != 0:
+                raise BitwardenAuthenticationError(f"Failed to list items: {result.stderr}")
             
             items = json.loads(result.stdout)
             
-            if not items:
+            # Find the item by name
+            target_item = None
+            for item in items:
+                if item.get('name') == item_name:
+                    target_item = item
+                    break
+            
+            if not target_item:
                 raise BitwardenItemNotFoundError(f"Item '{item_name}' not found in Bitwarden")
             
-            # Get the first matching item
-            item = items[0]
+            # Extract login credentials
+            login = target_item.get('login', {})
+            username = login.get('username', '')
+            password = login.get('password', '')
             
-            # Extract credentials
-            credentials = {
-                'username': item.get('login', {}).get('username', ''),
-                'password': item.get('login', {}).get('password', ''),
-                'name': item.get('name', ''),
-                'id': item.get('id', '')
+            if not username or not password:
+                raise BitwardenItemNotFoundError(f"Incomplete credentials for '{item_name}': missing username or password")
+            
+            return {
+                'username': username,
+                'password': password
             }
             
-            # Add any custom fields
-            if 'fields' in item.get('login', {}):
-                for field in item['login']['fields']:
-                    credentials[field.get('name', '')] = field.get('value', '')
-            
-            logger.info(f"Retrieved credentials for '{item_name}'")
-            return credentials
-            
-        except subprocess.CalledProcessError as e:
-            logger.error(f"Bitwarden CLI error: {e}")
-            raise BitwardenAuthenticationError(f"Failed to retrieve credentials: {e}")
         except json.JSONDecodeError as e:
-            logger.error(f"JSON parsing error: {e}")
-            raise BitwardenAuthenticationError(f"Invalid response from Bitwarden: {e}")
-    
-    def store_credentials(self, item_name: str, username: str, password: str, 
-                         additional_fields: Optional[Dict[str, str]] = None) -> bool:
-        """
-        Store credentials in Bitwarden.
-        
-        Args:
-            item_name: Name for the item
-            username: Username/email
-            password: Password
-            additional_fields: Additional fields to store
-            
-        Returns:
-            True if successful
-        """
-        if not self.authenticate():
-            raise BitwardenAuthenticationError("Authentication required")
-        
-        try:
-            # Create item data
-            item_data = {
-                "type": 1,  # Login type
-                "name": item_name,
-                "login": {
-                    "username": username,
-                    "password": password
-                }
-            }
-            
-            # Add custom fields if provided
-            if additional_fields:
-                item_data["login"]["fields"] = []
-                for key, value in additional_fields.items():
-                    item_data["login"]["fields"].append({
-                        "name": key,
-                        "value": value,
-                        "type": 0  # Text field
-                    })
-            
-            # Create temporary file for item data
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
-                json.dump(item_data, f)
-                temp_file = f.name
-            
-            try:
-                # Create the item
-                result = subprocess.run(
-                    ['bw', 'create', 'item', '--file', temp_file],
-                    capture_output=True, text=True, check=True,
-                    env={'BW_SESSION': self._session_key}
-                )
-                
-                logger.info(f"Successfully stored credentials for '{item_name}'")
-                return True
-                
-            finally:
-                # Clean up temporary file
-                if os.path.exists(temp_file):
-                    os.unlink(temp_file)
-                    
+            raise BitwardenAuthenticationError(f"Failed to parse Bitwarden response: {e}")
         except Exception as e:
-            logger.error(f"Failed to store credentials: {e}")
-            raise BitwardenAuthenticationError(f"Failed to store credentials: {e}")
-    
-    def list_items(self, search_term: Optional[str] = None) -> List[Dict[str, str]]:
-        """
-        List items in Bitwarden vault.
-        
-        Args:
-            search_term: Optional search term to filter items
-            
-        Returns:
-            List of item dictionaries
-        """
-        if not self.authenticate():
-            raise BitwardenAuthenticationError("Authentication required")
-        
-        try:
-            cmd = ['bw', 'list', 'items']
-            if search_term:
-                cmd.extend(['--search', search_term])
-            
-            result = subprocess.run(
-                cmd, capture_output=True, text=True, check=True,
-                env={'BW_SESSION': self._session_key}
-            )
-            
-            items = json.loads(result.stdout)
-            
-            # Extract basic info
-            item_list = []
-            for item in items:
-                item_info = {
-                    'name': item.get('name', ''),
-                    'username': item.get('login', {}).get('username', ''),
-                    'id': item.get('id', '')
-                }
-                item_list.append(item_info)
-            
-            return item_list
-            
-        except Exception as e:
-            logger.error(f"Failed to list items: {e}")
-            raise BitwardenAuthenticationError(f"Failed to list items: {e}")
+            raise BitwardenAuthenticationError(f"Failed to retrieve credentials: {e}")
     
     def logout(self):
-        """Logout and clear session."""
+        """Logout and clear the session key."""
         if self._session_key:
             try:
-                subprocess.run(['bw', 'lock'], check=True)
-            except:
-                pass  # Ignore errors during logout
-            finally:
-                self._session_key = setup_logging()
+                env = os.environ.copy()
+                env['BW_SESSION'] = self._session_key
+                subprocess.run(['bw', 'lock'], capture_output=True, env=env)
                 logger.info("Logged out of Bitwarden")
+            except Exception as e:
+                logger.warning(f"Error during logout: {e}")
+            finally:
+                self._session_key = None
