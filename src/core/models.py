@@ -79,4 +79,4 @@ class SwimmingInterval:
     pace_per_100m: float
     heart_rate: Optional[float] = None
     strokes: Optional[int] = None
-    swolf: Optional[float] = None
+    swolf: Optional[float] = None# Test comment
