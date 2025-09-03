@@ -172,7 +172,7 @@ async def run_interactive_sync():
     elif output_type == 'csv':
         # Define fixed output directory and construct filename
         output_dir = Path("./output")
-        filename = f"garmingo_{selected_profile_name}.csv"
+        filename = f"garmingo_{start_date.strftime('%Y-%m-%d')}_{end_date.strftime('%Y-%m-%d')}.csv"
         output_target = output_dir / filename # output_target is now a Path object
         logger.info(f"Target CSV file path set to: {output_target}")
         # No user input needed for CSV path anymore
