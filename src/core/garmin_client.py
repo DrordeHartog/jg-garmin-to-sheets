@@ -7,7 +7,7 @@ import garminconnect
 import json
 from garth.sso import resume_login
 import garth
-from .exceptions import MFARequiredException
+from src.exceptions import MFARequiredException
 
 logger = logging.getLogger(__name__)
 
@@ -536,9 +536,5 @@ class GarminClient:
         except (BitwardenAuthenticationError, BitwardenItemNotFoundError) as e:
             logger.error(f"Bitwarden error during authentication: {str(e)}")
             raise
-        except Exception as e:
-            logger.error(f"Garmin authentication failed with Bitwarden credentials: {str(e)}")
-            raise AuthenticationError(f"Garmin authentication failed: {str(e)}") from e
 
 
-            raise Exception(f"An unexpected error occurred during MFA submission: {str(e)}")

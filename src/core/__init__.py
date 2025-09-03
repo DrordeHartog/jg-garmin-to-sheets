@@ -9,7 +9,7 @@ This module handles:
 
 # Import main classes for easy access
 from .garmin_client import GarminClient
-from .models import SwimmingMetrics, GarminMetrics
+from .models import SwimmingMetrics, GarminMetrics, SwimmingSession, SwimmingInterval
 from .bitwarden_client import BitwardenClient
 
 # Define what gets imported with "from src.core import *"
@@ -17,5 +17,7 @@ __all__ = [
     'GarminClient',
     'SwimmingMetrics', 
     'GarminMetrics',
+    'SwimmingSession',
+    'SwimmingInterval',
     'BitwardenClient'
 ]
