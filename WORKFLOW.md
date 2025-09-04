@@ -40,10 +40,10 @@ Transform the existing Garmin data sync tool into a focused swimming performance
 - [v] Test basic imports
 
 #### **Day 3-4: Extract Authentication**
-- [ ] Move Garmin authentication logic to `core/garmin_client.py`
-- [ ] Create clean authentication interface
-- [ ] Update imports in main.py
-- [ ] Test authentication still works
+- [x] Move Garmin authentication logic to `core/garmin_client.py`
+- [x] Create clean authentication interface
+- [x] Update imports in main.py
+- [x] Test authentication still works
 
 #### **Day 5-7: Extract Data Fetching**
 - [ ] Move metrics fetching logic to `core/garmin_client.py`

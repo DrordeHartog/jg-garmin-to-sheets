@@ -227,18 +227,16 @@ async def sync(email: str, password: str, start_date: date, end_date: date, outp
         # Parameters are now passed directly
         date_format = "%Y-%m-%d" # Keep for logging/formatting
 
-        # Initialize Garmin client using passed credentials
+        # Initialize Garmin client (no credentials stored)
         logger.info("Initializing Garmin client...")
-        garmin_client = GarminClient(email, password)
+        garmin_client = GarminClient()
 
         logger.info(f"Starting sync from {start_date.strftime(date_format)} to {end_date.strftime(date_format)} for user {email}")
 
-        # Authenticate with Garmin using passed credentials
-        logger.info("Authenticating with Garmin...")
+        # Fetch metrics for the date range (handles authentication internally)
+        logger.info("Fetching metrics from Garmin...")
         try:
-            print("Attempting to authenticate with Garmin Connect...")
-            await garmin_client.authenticate()
-            print("Successfully authenticated with Garmin Connect.")
+            metrics = await garmin_client.get_metrics_for_date_range(start_date, end_date, email, password)
         except MFARequiredException as mfa_exc:
             print("Garmin is requesting an MFA code. Please enter it below:")
             mfa_code = input("MFA Code: ")
@@ -246,6 +244,8 @@ async def sync(email: str, password: str, start_date: date, end_date: date, outp
                 print("Submitting MFA code...")
                 await garmin_client.submit_mfa_code(mfa_code)
                 print("Successfully authenticated with Garmin Connect using MFA.")
+                # Retry fetching metrics after MFA
+                metrics = await garmin_client.get_metrics_for_date_range(start_date, end_date, email, password)
             except GarthHTTPError as mfa_auth_err:
                 logger.error(f"MFA authentication failed: {mfa_auth_err}", exc_info=True)
                 print(f"Invalid MFA code. Please try again or ensure your Garmin account settings are correct. Exiting.")
@@ -259,25 +259,10 @@ async def sync(email: str, password: str, start_date: date, end_date: date, outp
             print(f"\nInitial Garmin authentication failed for {email}.")
             print("Please check the username and password for the selected profile in your configuration (e.g., .env file). Exiting.")
             sys.exit(1)
-
-        # Get metrics for each day in the date range
-        logger.info("Fetching metrics from Garmin...")
-        metrics = []
-        current_date = start_date # Use passed start_date
-        while current_date <= end_date: # Use passed end_date
-            logger.info(f"Fetching metrics for {current_date}")
-            daily_metrics = await garmin_client.get_metrics(current_date)
-            if daily_metrics: # Ensure daily_metrics is not None before accessing attributes
-                pass
-            metrics.append(daily_metrics)
-            current_date += timedelta(days=1)
-
-        if not metrics:
-             logger.warning("No metrics fetched from Garmin. Nothing to write.")
-             print("\nNo metrics data found for the selected date range.")
-             # Decide if we should exit or just finish gracefully
-             # sys.exit(0) # Or just let it finish
-             return # Exit the sync function if no data
+        except Exception as e:
+            logger.error(f"Error fetching metrics: {e}", exc_info=True)
+            print(f"\nError fetching metrics: {e}")
+            sys.exit(1)
 
         # --- Output based on selected type ---
         if output_type == 'sheets':

@@ -17,6 +17,10 @@ venv/
 .env
 credentials/
 
+# Log files (may contain sensitive data)
+logs/
+*.log
+
 # IDE files
 .idea/
 .vscode/

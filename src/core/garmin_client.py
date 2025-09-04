@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from datetime import date
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 import asyncio
 import logging
 import garminconnect
@@ -120,6 +120,101 @@ class GarminClient:
         except Exception as e:
             logger.error(f"Error fetching HRV data for {target_date_iso}: {str(e)}")
             return None
+
+    async def _fetch_stats_data(self, date_iso: str) -> Optional[Dict[str, Any]]:
+        """Fetch stats and body data for a given date."""
+        try:
+            return await asyncio.get_event_loop().run_in_executor(
+                None, self.client.get_stats_and_body, date_iso
+            )
+        except Exception as e:
+            logger.error(f"Error fetching stats data for {date_iso}: {str(e)}")
+            return None
+
+    async def _fetch_sleep_data(self, date_iso: str) -> Optional[Dict[str, Any]]:
+        """Fetch sleep data for a given date."""
+        try:
+            return await asyncio.get_event_loop().run_in_executor(
+                None, self.client.get_sleep_data, date_iso
+            )
+        except Exception as e:
+            logger.error(f"Error fetching sleep data for {date_iso}: {str(e)}")
+            return None
+
+    async def _fetch_activities_data(self, date_iso: str) -> Optional[List[Dict[str, Any]]]:
+        """Fetch activities data for a given date."""
+        try:
+            return await asyncio.get_event_loop().run_in_executor(
+                None, self.client.get_activities_by_date, date_iso, date_iso
+            )
+        except Exception as e:
+            logger.error(f"Error fetching activities data for {date_iso}: {str(e)}")
+            return None
+
+    async def _fetch_summary_data(self, date_iso: str) -> Optional[Dict[str, Any]]:
+        """Fetch user summary data for a given date."""
+        try:
+            return await asyncio.get_event_loop().run_in_executor(
+                None, self.client.get_user_summary, date_iso
+            )
+        except Exception as e:
+            logger.error(f"Error fetching summary data for {date_iso}: {str(e)}")
+            return None
+
+    async def _fetch_training_status_data(self, date_iso: str) -> Optional[Dict[str, Any]]:
+        """Fetch training status data for a given date."""
+        try:
+            return await asyncio.get_event_loop().run_in_executor(
+                None, self.client.get_training_status, date_iso
+            )
+        except Exception as e:
+            logger.error(f"Error fetching training status data for {date_iso}: {str(e)}")
+            return None
+
+    async def _fetch_raw_data(self, target_date: date) -> Dict[str, Any]:
+        """
+        Fetch all raw data types concurrently for a given date.
+        
+        Args:
+            target_date: The date to fetch data for
+            
+        Returns:
+            Dictionary containing all raw data types:
+            - stats: Stats and body data
+            - sleep_data: Sleep data
+            - activities: Activities data
+            - summary: User summary data
+            - training_status: Training status data
+            - hrv_payload: HRV data
+        """
+        date_iso = target_date.isoformat()
+        
+        # Fetch all data concurrently
+        stats, sleep_data, activities, summary, training_status, hrv_payload = await asyncio.gather(
+            self._fetch_stats_data(date_iso),
+            self._fetch_sleep_data(date_iso),
+            self._fetch_activities_data(date_iso),
+            self._fetch_summary_data(date_iso),
+            self._fetch_training_status_data(date_iso),
+            self._fetch_hrv_data(date_iso)
+        )
+
+        # Debug logging
+        logger.debug(f"Raw stats data: {stats}")
+        logger.debug(f"Raw sleep data: {sleep_data}")
+        logger.debug(f"Raw activities data: {activities}")
+        logger.debug(f"Raw summary data: {summary}")
+        logger.debug(f"Raw training status data: {training_status}")
+        logger.debug(f"Raw HRV payload: {hrv_payload}")
+
+        return {
+            'stats': stats,
+            'sleep_data': sleep_data,
+            'activities': activities,
+            'summary': summary,
+            'training_status': training_status,
+            'hrv_payload': hrv_payload
+        }
 
     async def get_metrics(self, target_date: date, email: str, password: str) -> GarminMetrics:
         """Get metrics for a specific date. Re-authenticates each time for security."""
@@ -480,6 +575,42 @@ class GarminClient:
         except Exception as e:
             self._authenticated = False
             logger.error(f"An unexpected error occurred during MFA submission: {str(e)}")
+
+    async def get_metrics_for_date_range(self, start_date: date, end_date: date, email: str, password: str) -> List[GarminMetrics]:
+        """
+        Fetch metrics for a date range. Re-authenticates each time for security.
+        
+        Args:
+            start_date: Start date for the range
+            end_date: End date for the range  
+            email: Garmin email
+            password: Garmin password
+            
+        Returns:
+            List of GarminMetrics objects for each date in the range
+            
+        Raises:
+            Exception: If no metrics are fetched for any date
+        """
+        from datetime import timedelta
+        
+        logger.info(f"Fetching metrics from {start_date} to {end_date}")
+        metrics = []
+        current_date = start_date
+        
+        while current_date <= end_date:
+            logger.info(f"Fetching metrics for {current_date}")
+            daily_metrics = await self.get_metrics(current_date, email, password)
+            if daily_metrics:
+                metrics.append(daily_metrics)
+            current_date += timedelta(days=1)
+        
+        if not metrics:
+            logger.warning("No metrics fetched from Garmin for the date range.")
+            raise Exception("No metrics data found for the selected date range.")
+        
+        logger.info(f"Successfully fetched {len(metrics)} days of metrics")
+        return metrics
 
     async def authenticate_with_bitwarden(self, user_profile_name: str):
         """
