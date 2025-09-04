@@ -1,16 +1,36 @@
-FROM python:3.9-slim
+# Generated output files (ignored)
+output/
+*.csv
+*.pdf
+*.png
 
-WORKDIR /app
+# Python cache (ignored)
+__pycache__/
+*.pyc
+*.pyo
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Virtual environment (ignored)
+venv/
+.venv/
 
-COPY src/ ./src/
+# Environment variables (ignored)
+.env
+credentials/
+*.pickle
 
-# Add gunicorn for serving the app
-RUN pip install gunicorn flask
+# IDE files (ignored)
+.idea/
+.vscode/
 
-# Set environment variables
-ENV PORT=8080
+# OS files (ignored)
+.DS_Store
+Thumbs.db
 
-ENTRYPOINT ["python", "-m", "src.main"]
+# Build artifacts (ignored)
+build/
+dist/
+*.egg-info/
+
+# Logs (ignored)
+logs/
+*.log

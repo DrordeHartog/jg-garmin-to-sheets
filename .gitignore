@@ -1,23 +1,31 @@
-# Sensitive files
+# Generated output files
+output/
+*.csv
+*.pdf
+*.png
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Virtual environment
+venv/
+.venv/
+
+# Environment variables (secrets)
 .env
 credentials/
-*.pickle
-output/
-projectStatus.md
-.roo/
 
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-
-# Logs
-logs/
-*.log
-
-# Environment
-.venv/
-venv/
-ENV/
-build/.DS_Store
+# IDE files
 .idea/
+.vscode/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+build/
+dist/
+*.egg-info/

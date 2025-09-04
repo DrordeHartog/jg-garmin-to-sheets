@@ -7,7 +7,7 @@ import garminconnect
 import json
 from garth.sso import resume_login
 import garth
-from src.exceptions import MFARequiredException
+from ..exceptions import MFARequiredException
 
 logger = logging.getLogger(__name__)
 
@@ -59,57 +59,54 @@ class GarminMetrics:
 
 
 class GarminClient:
-    def __init__(self, email: str, password: str):
-        self.client = garminconnect.Garmin(email, password)
+    def __init__(self):
+        # No credentials stored in constructor
+        self.client = None
         self._authenticated = False
         self.mfa_ticket_dict = None
 
-    async def authenticate(self):
-        """Modified to handle non-async login method"""
-        # Store the garth client instance before attempting login, in case MFA is required
-        # and garminconnect overwrites self.client.garth with a dict.
-        initial_garth_client = self.client.garth
+    def _is_mfa_required(self, exception: Exception) -> bool:
+        """Check if exception indicates MFA is required."""
+        if isinstance(exception, AttributeError):
+            return "'dict' object has no attribute 'expired'" in str(exception)
+        elif isinstance(exception, garminconnect.GarminConnectAuthenticationError):
+            return "MFA-required" in str(exception) or "Authentication failed" in str(exception)
+        return False
+    
+    def _handle_mfa_required(self) -> None:
+        """Handle MFA requirement by capturing ticket and raising exception."""
+        if hasattr(self.client.garth, 'oauth2_token') and isinstance(self.client.garth.oauth2_token, dict):
+            self.mfa_ticket_dict = self.client.garth.oauth2_token
+            logger.info(f"MFA ticket captured: {self.mfa_ticket_dict}")
+            raise MFARequiredException(message="MFA code is required.", mfa_data=self.mfa_ticket_dict)
+        else:
+            logger.error("MFA detected but oauth2_token is not a dict. This is unexpected.")
+            raise Exception("MFA detection failed: Invalid token format")
+
+    async def authenticate(self, email: str, password: str):
+        """Clean authentication with simplified exception handling."""
+        # Use credentials immediately, don't store them
+        self.client = garminconnect.Garmin(email, password)
+        del email, password  # Clear from memory after use
 
         try:
             def login_wrapper():
                 return self.client.login()
             
-            login_result = await asyncio.get_event_loop().run_in_executor(None, login_wrapper)
-            
-            # If login_wrapper completes without raising an exception, it's a successful non-MFA login.
+            await asyncio.get_event_loop().run_in_executor(None, login_wrapper)
             self._authenticated = True
-            self.mfa_ticket_dict = None # Clear ticket on successful non-MFA login
-
-        except AttributeError as e:
-            if "'dict' object has no attribute 'expired'" in str(e):
-                logger.info("Caught AttributeError indicating MFA challenge.")
-                if hasattr(self.client.garth, 'oauth2_token') and isinstance(self.client.garth.oauth2_token, dict):
-                    self.mfa_ticket_dict = self.client.garth.oauth2_token # Capture the MFA state dictionary
-                    logger.info(f"MFA ticket (dict) captured: {self.mfa_ticket_dict}")
-                    raise MFARequiredException(message="MFA code is required.", mfa_data=self.mfa_ticket_dict)
-                else:
-                    logger.error("MFA detected via AttributeError, but self.client.garth.oauth2_token is not a dict. This is unexpected.")
-                    raise # Re-raise the original AttributeError
-            else:
-                # Re-raise if it's an AttributeError but not the specific MFA one
-                raise
-        except garminconnect.GarminConnectAuthenticationError as e:
-            # Catch specific GarminConnectAuthenticationError for clearer logging
-            if "MFA-required" in str(e) or "Authentication failed" in str(e): # Added "Authentication failed" as it can also indicate MFA
-                logger.info("Caught GarminConnectAuthenticationError indicating MFA challenge.")
-                if hasattr(self.client.garth, 'oauth2_token') and isinstance(self.client.garth.oauth2_token, dict):
-                    self.mfa_ticket_dict = self.client.garth.oauth2_token # Capture the MFA state dictionary
-                    logger.info(f"MFA ticket (dict) captured: {self.mfa_ticket_dict}")
-                    raise MFARequiredException(message="MFA code is required.", mfa_data=self.mfa_ticket_dict)
-                else:
-                    logger.error("MFA detected via GarminConnectAuthenticationError, but self.client.garth.oauth2_token is not a dict. This is unexpected.")
-                    raise # Re-raise the original GarminConnectAuthenticationError
-            else:
-                # Re-raise if it's an AuthenticationError but not the specific MFA one
-                raise
+            self.mfa_ticket_dict = None
+            
         except Exception as e:
-            logger.error(f"An unexpected error occurred during authentication: {str(e)}")
-            raise garminconnect.GarminConnectAuthenticationError(f"An unexpected error occurred during authentication: {str(e)}") from e # Re-raise as GarminConnectAuthenticationError
+            # Check if this is an MFA-related error
+            if self._is_mfa_required(e):
+                self._handle_mfa_required()
+            else:
+                # Convert to our standard authentication error
+                raise garminconnect.GarminConnectAuthenticationError(f"Authentication failed: {str(e)}") from e
+
+
+
 
     async def _fetch_hrv_data(self, target_date_iso: str) -> Optional[Dict[str, Any]]:
         """Fetches HRV data for the given date."""
@@ -124,10 +121,12 @@ class GarminClient:
             logger.error(f"Error fetching HRV data for {target_date_iso}: {str(e)}")
             return None
 
-    async def get_metrics(self, target_date: date) -> GarminMetrics:
+    async def get_metrics(self, target_date: date, email: str, password: str) -> GarminMetrics:
+        """Get metrics for a specific date. Re-authenticates each time for security."""
         logger.debug(f"VERIFY get_metrics: display_name: {getattr(self.client, 'display_name', 'Not Set')}, oauth2_token type: {type(self.client.garth.oauth2_token)}")
-        if not self._authenticated:
-            await self.authenticate()
+        
+        # Re-authenticate each time for security (credentials not stored)
+        await self.authenticate(email, password)
 
         try:
             async def get_stats():
@@ -520,12 +519,9 @@ class GarminClient:
             
             logger.info(f"Successfully retrieved credentials for {user_profile_name} from Bitwarden")
             
-            # Update the Garmin client with new credentials
-            self.client = garminconnect.Garmin(username, password)
-            
             # Authenticate with Garmin using the retrieved credentials
             logger.info(f"Authenticating with Garmin using Bitwarden credentials for {user_profile_name}")
-            await self.authenticate()
+            await self.authenticate(username, password)
             
             # Clean up Bitwarden session
             bitwarden_client.logout()
