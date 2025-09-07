@@ -27,35 +27,63 @@ class GarminMetrics:
     average_stress: Optional[int] = None
     training_status: Optional[str] = None
     vo2max_running: Optional[float] = None
-    vo2max_cycling: Optional[float] = None
     intensity_minutes: Optional[int] = None
     all_activity_count: Optional[int] = None
     running_activity_count: Optional[int] = None
     running_distance: Optional[float] = None
-    cycling_activity_count: Optional[int] = None
-    cycling_distance: Optional[float] = None
     strength_activity_count: Optional[int] = None
     strength_duration: Optional[float] = None
     cardio_activity_count: Optional[int] = None
     cardio_duration: Optional[float] = None
-    tennis_activity_count: Optional[int] = None
-    tennis_activity_duration: Optional[float] = None
     overnight_hrv: Optional[int] = None
     hrv_status: Optional[str] = None
+    # Swimming Activity Counts
     swim_activity_count: Optional[int] = None
-    swim_distance_meters: Optional[float] = None
-    swim_laps: Optional[int] = None  # in meters
-    swim_duration_min: Optional[float] = None
     pool_swim_count: Optional[int] = None
     open_water_swim_count: Optional[int] = None
-    swim_average_pace_per_100m: Optional[float] = None  # needs activity details
-    swim_max_pace_per_100m: Optional[float] = None
-    swim_average_hr: Optional[float] = None  # needs activity details
-    swim_max_hr: Optional[float] = None
-    swim_average_strokes_per_length: Optional[float] = None  # needs activity details
-    swim_average_strokes_per_minute: Optional[float] = None
-    avg_swolf: Optional[float] = None  # needs activity details
-    total_strokes: Optional[int] = None  # needs activity details
+    
+    # Swimming Distance & Duration
+    swim_distance_meters: Optional[float] = None
+    swim_duration_min: Optional[float] = None
+    swim_duration_seconds: Optional[float] = None
+    
+    # Swimming Laps & Lengths
+    swim_laps: Optional[int] = None  # Total laps completed
+    active_lengths: Optional[int] = None  # Active swimming lengths
+    pool_length_meters: Optional[float] = None  # Pool length in meters
+    
+    # Swimming Pace & Speed
+    swim_average_pace_per_100m: Optional[float] = None  # Average pace per 100m in seconds
+    swim_max_pace_per_100m: Optional[float] = None  # Max pace per 100m in seconds
+    swim_average_speed: Optional[float] = None  # Average speed in m/s
+    swim_max_speed: Optional[float] = None  # Max speed in m/s
+    
+    # Swimming Heart Rate
+    swim_average_hr: Optional[float] = None  # Average heart rate during swim
+    swim_max_hr: Optional[float] = None  # Max heart rate during swim
+    
+    # Swimming Strokes & Technique
+    total_strokes: Optional[int] = None  # Total strokes taken
+    swim_average_strokes_per_length: Optional[float] = None  # Average strokes per length
+    swim_average_strokes_per_minute: Optional[float] = None  # Stroke rate (SPM)
+    swim_cadence: Optional[float] = None  # Swimming cadence
+    
+    # Swimming Efficiency Metrics
+    avg_swolf: Optional[float] = None  # Average SWOLF score (strokes + time per 50m)
+    min_swolf: Optional[float] = None  # Best (minimum) SWOLF score
+    max_swolf: Optional[float] = None  # Worst (maximum) SWOLF score
+    
+    # Swimming Zones & Intensity
+    swim_zone1_time: Optional[float] = None  # Time in zone 1 (recovery)
+    swim_zone2_time: Optional[float] = None  # Time in zone 2 (aerobic base)
+    swim_zone3_time: Optional[float] = None  # Time in zone 3 (tempo)
+    swim_zone4_time: Optional[float] = None  # Time in zone 4 (threshold)
+    swim_zone5_time: Optional[float] = None  # Time in zone 5 (VO2 max)
+    
+    # Swimming Calories & Power
+    swim_calories: Optional[int] = None  # Calories burned during swim
+    swim_training_effect: Optional[float] = None  # Training effect score
+    swim_anaerobic_training_effect: Optional[float] = None  # Anaerobic training effect
 
 
 class GarminClient:
@@ -252,28 +280,57 @@ class GarminClient:
             all_activity_count=activity_metrics['all_activity_count'],
             running_activity_count=activity_metrics['running_count'],
             running_distance=activity_metrics['running_distance'],
-            cycling_activity_count=activity_metrics['cycling_count'],
-            cycling_distance=activity_metrics['cycling_distance'],
             strength_activity_count=activity_metrics['strength_count'],
             strength_duration=activity_metrics['strength_duration'],
             cardio_activity_count=activity_metrics['cardio_count'],
             cardio_duration=activity_metrics['cardio_duration'],
-            tennis_activity_count=activity_metrics['tennis_count'],
-            tennis_activity_duration=activity_metrics['tennis_duration'],
+            # Swimming activity counts
             swim_activity_count=activity_metrics['swim_count'],
-            swim_distance_meters=activity_metrics['swim_distance'],
-            swim_laps=activity_metrics['swim_laps'],
-            swim_duration_min=activity_metrics['swim_duration'],
             pool_swim_count=activity_metrics['pool_swim'],
             open_water_swim_count=activity_metrics['ows_swim'],
+            
+            # Swimming distance & duration
+            swim_distance_meters=activity_metrics['swim_distance'],
+            swim_duration_min=activity_metrics['swim_duration'],
+            swim_duration_seconds=activity_metrics['swim_duration_seconds'],
+            
+            # Swimming laps & lengths
+            swim_laps=activity_metrics['swim_laps'],
+            active_lengths=activity_metrics['active_lengths'],
+            pool_length_meters=activity_metrics['pool_length_meters'],
+            
+            # Swimming pace & speed
             swim_average_pace_per_100m=activity_metrics['swim_average_pace_per_100m'],
             swim_max_pace_per_100m=activity_metrics['swim_max_pace_per_100m'],
+            swim_average_speed=activity_metrics['swim_average_speed'],
+            swim_max_speed=activity_metrics['swim_max_speed'],
+            
+            # Swimming heart rate
             swim_average_hr=activity_metrics['swim_average_hr'],
             swim_max_hr=activity_metrics['swim_max_hr'],
+            
+            # Swimming strokes & technique
+            total_strokes=activity_metrics['total_strokes'],
             swim_average_strokes_per_length=activity_metrics['swim_average_strokes_per_length'],
             swim_average_strokes_per_minute=activity_metrics['swim_average_strokes_per_minute'],
+            swim_cadence=activity_metrics['swim_cadence'],
+            
+            # Swimming efficiency metrics
             avg_swolf=activity_metrics['avg_swolf'],
-            total_strokes=activity_metrics['total_strokes'],
+            min_swolf=activity_metrics['min_swolf'],
+            max_swolf=activity_metrics['max_swolf'],
+            
+            # Swimming zones & intensity
+            swim_zone1_time=activity_metrics['swim_zone1_time'],
+            swim_zone2_time=activity_metrics['swim_zone2_time'],
+            swim_zone3_time=activity_metrics['swim_zone3_time'],
+            swim_zone4_time=activity_metrics['swim_zone4_time'],
+            swim_zone5_time=activity_metrics['swim_zone5_time'],
+            
+            # Swimming calories & power
+            swim_calories=activity_metrics['swim_calories'],
+            swim_training_effect=activity_metrics['swim_training_effect'],
+            swim_anaerobic_training_effect=activity_metrics['swim_anaerobic_training_effect'],
             # Sleep metrics
             sleep_score=sleep_metrics['sleep_score'],
             sleep_length=sleep_metrics['sleep_length'],
@@ -290,8 +347,7 @@ class GarminClient:
             average_stress=summary_metrics['average_stress'],
             # Training metrics
             training_status=training_metrics['training_status'],
-            vo2max_running=training_metrics['vo2max_running'],
-            vo2max_cycling=training_metrics['vo2max_cycling']
+            vo2max_running=training_metrics['vo2max_running']
         )
 
     def _process_hrv_data(self, hrv_payload: Optional[Dict[str, Any]], target_date: date) -> Dict[str, Any]:
@@ -319,28 +375,54 @@ class GarminClient:
         # Initialize counters
         running_count = 0
         running_distance = 0
-        cycling_count = 0
-        cycling_distance = 0
         strength_count = 0
         strength_duration = 0
         cardio_count = 0
         cardio_duration = 0
-        tennis_count = 0
-        tennis_duration = 0
+        
+        # Swimming counters
         swim_count = 0
-        swim_distance = 0.0
-        swim_duration = 0.0
-        swim_laps = 0
         pool_swim = 0
         ows_swim = 0
+        swim_distance = 0.0
+        swim_duration = 0.0
+        swim_duration_seconds = 0.0
+        swim_laps = 0
+        active_lengths = 0
+        pool_length_meters = None
+        
+        # Swimming pace & speed
         swim_average_pace_per_100m = None
         swim_max_pace_per_100m = None
+        swim_average_speed = None
+        swim_max_speed = None
+        
+        # Swimming heart rate
         swim_average_hr = None
         swim_max_hr = None
+        
+        # Swimming strokes & technique
+        total_strokes = 0
         swim_average_strokes_per_length = None
         swim_average_strokes_per_minute = None
+        swim_cadence = None
+        
+        # Swimming efficiency metrics
         avg_swolf = None
-        total_strokes = None
+        min_swolf = None
+        max_swolf = None
+        
+        # Swimming zones & intensity
+        swim_zone1_time = None
+        swim_zone2_time = None
+        swim_zone3_time = None
+        swim_zone4_time = None
+        swim_zone5_time = None
+        
+        # Swimming calories & power
+        swim_calories = None
+        swim_training_effect = None
+        swim_anaerobic_training_effect = None
 
         if activities:
             for activity in activities:
@@ -351,38 +433,71 @@ class GarminClient:
                 if 'run' in type_key or parent_type_id == 1:  # 1 is running
                     running_count += 1
                     running_distance += activity.get('distance', 0) / 1000  # Convert to km
-                elif 'virtual_ride' in type_key or 'cycling' in type_key or parent_type_id == 2:  # 2 is cycling
-                    cycling_count += 1
-                    cycling_distance += activity.get('distance', 0) / 1000
                 elif 'strength' in type_key:
                     strength_count += 1
                     strength_duration += activity.get('duration', 0) / 60  # Convert seconds to minutes
                 elif 'cardio' in type_key:
                     cardio_count += 1
                     cardio_duration += activity.get('duration', 0) / 60
-                elif 'tennis' in type_key:
-                    tennis_count += 1
-                    tennis_duration += activity.get('duration', 0) / 60
                 if 'swim' in type_key or (parent_type_id == 26 and type_key == 'lap_swimming'):
                     swim_count += 1
                     swim_distance += activity.get('distance', 0)  # Distance is already in meters
-                    swim_duration += activity.get('duration', 0) / 60  # Convert seconds to minutes
-                    swim_laps = activity.get('lapCount', 0)
+                    duration_seconds = activity.get('duration', 0)
+                    swim_duration += duration_seconds / 60  # Convert seconds to minutes
+                    swim_duration_seconds += duration_seconds
+                    swim_laps += activity.get('lapCount', 0)
+                    active_lengths += activity.get('activeLengths', 0)
                     
-                    # Fix division by zero issues for pace calculations
+                    # Fix pool length calculation (3333.33m → 33.33m)
+                    pool_length = activity.get('poolLength', 0)
+                    if pool_length and pool_length > 100:  # If pool length seems too large, divide by 100
+                        pool_length_meters = pool_length / 100
+                    else:
+                        pool_length_meters = pool_length
+                    
+                    # Swimming pace & speed
                     avg_speed = activity.get('averageSpeed', 0)
                     max_speed = activity.get('maxSpeed', 0)
+                    swim_average_speed = avg_speed
+                    swim_max_speed = max_speed
                     
                     if avg_speed and avg_speed > 0:
                         swim_average_pace_per_100m = 100 / avg_speed
                     if max_speed and max_speed > 0:
                         swim_max_pace_per_100m = 100 / max_speed
+                    
+                    # Swimming heart rate
                     swim_max_hr = activity.get('maxHR', 0)
                     swim_average_hr = activity.get('averageHR', 0)
+                    
+                    # Swimming strokes & technique
+                    total_strokes += activity.get('strokes', 0)
                     swim_average_strokes_per_length = activity.get('avgStrokes', 0)
                     swim_average_strokes_per_minute = activity.get('averageSwimCadenceInStrokesPerMinute', 0)
+                    swim_cadence = activity.get('swimCadence', 0)
+                    
+                    # Swimming efficiency metrics
                     avg_swolf = activity.get('averageSwolf', 0)
-                    total_strokes = activity.get('strokes', 0)
+                    min_swolf = activity.get('minSwolf', 0)
+                    max_swolf = activity.get('maxSwolf', 0)
+                    
+                    # Swimming zones & intensity (if available)
+                    swim_zone1_time = activity.get('zone1Time', 0)
+                    swim_zone2_time = activity.get('zone2Time', 0)
+                    swim_zone3_time = activity.get('zone3Time', 0)
+                    swim_zone4_time = activity.get('zone4Time', 0)
+                    swim_zone5_time = activity.get('zone5Time', 0)
+                    
+                    # Swimming calories & power
+                    swim_calories = activity.get('calories', 0)
+                    swim_training_effect = activity.get('trainingEffect', 0)
+                    swim_anaerobic_training_effect = activity.get('anaerobicTrainingEffect', 0)
+                    
+                    # Determine pool vs open water
+                    if 'pool' in type_key or type_key == 'lap_swimming':
+                        pool_swim += 1
+                    elif 'open' in type_key or 'water' in type_key:
+                        ows_swim += 1
         else:
             logger.warning(f"Activities data for {target_date} is None. Activity metrics will be blank.")
 
@@ -390,28 +505,58 @@ class GarminClient:
             'all_activity_count': len(activities) if activities is not None else 0,
             'running_count': running_count,
             'running_distance': running_distance,
-            'cycling_count': cycling_count,
-            'cycling_distance': cycling_distance,
             'strength_count': strength_count,
             'strength_duration': strength_duration,
             'cardio_count': cardio_count,
             'cardio_duration': cardio_duration,
-            'tennis_count': tennis_count,
-            'tennis_duration': tennis_duration,
+            
+            # Swimming activity counts
             'swim_count': swim_count,
-            'swim_distance': swim_distance,
-            'swim_duration': swim_duration,
-            'swim_laps': swim_laps,
             'pool_swim': pool_swim,
             'ows_swim': ows_swim,
+            
+            # Swimming distance & duration
+            'swim_distance': swim_distance,
+            'swim_duration': swim_duration,
+            'swim_duration_seconds': swim_duration_seconds,
+            
+            # Swimming laps & lengths
+            'swim_laps': swim_laps,
+            'active_lengths': active_lengths,
+            'pool_length_meters': pool_length_meters,
+            
+            # Swimming pace & speed
             'swim_average_pace_per_100m': swim_average_pace_per_100m,
             'swim_max_pace_per_100m': swim_max_pace_per_100m,
+            'swim_average_speed': swim_average_speed,
+            'swim_max_speed': swim_max_speed,
+            
+            # Swimming heart rate
             'swim_average_hr': swim_average_hr,
             'swim_max_hr': swim_max_hr,
+            
+            # Swimming strokes & technique
+            'total_strokes': total_strokes,
             'swim_average_strokes_per_length': swim_average_strokes_per_length,
             'swim_average_strokes_per_minute': swim_average_strokes_per_minute,
+            'swim_cadence': swim_cadence,
+            
+            # Swimming efficiency metrics
             'avg_swolf': avg_swolf,
-            'total_strokes': total_strokes
+            'min_swolf': min_swolf,
+            'max_swolf': max_swolf,
+            
+            # Swimming zones & intensity
+            'swim_zone1_time': swim_zone1_time,
+            'swim_zone2_time': swim_zone2_time,
+            'swim_zone3_time': swim_zone3_time,
+            'swim_zone4_time': swim_zone4_time,
+            'swim_zone5_time': swim_zone5_time,
+            
+            # Swimming calories & power
+            'swim_calories': swim_calories,
+            'swim_training_effect': swim_training_effect,
+            'swim_anaerobic_training_effect': swim_anaerobic_training_effect
         }
 
     def _process_sleep_data(self, sleep_data: Optional[Dict[str, Any]], target_date: date) -> Dict[str, Any]:
@@ -486,7 +631,6 @@ class GarminClient:
     def _process_training_status_data(self, training_status: Optional[Dict[str, Any]], target_date: date) -> Dict[str, Any]:
         """Process training status data from raw API response."""
         vo2max_running: Optional[float] = None
-        vo2max_cycling: Optional[float] = None
         training_status_phrase: Optional[str] = None
         
         if training_status:
@@ -495,10 +639,6 @@ class GarminClient:
                 generic_vo2max = most_recent_vo2max.get('generic')
                 if generic_vo2max:
                     vo2max_running = generic_vo2max.get('vo2MaxValue')
-                
-                cycling_vo2max = most_recent_vo2max.get('cycling')
-                if cycling_vo2max:
-                    vo2max_cycling = cycling_vo2max.get('vo2MaxValue')
 
             training_status_data = {}
             most_recent_training_status = training_status.get('mostRecentTrainingStatus')
@@ -520,7 +660,6 @@ class GarminClient:
         
         return {
             'vo2max_running': vo2max_running,
-            'vo2max_cycling': vo2max_cycling,
             'training_status': training_status_phrase
         }
 

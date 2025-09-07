@@ -6,7 +6,7 @@ import asyncio
 from datetime import date
 from unittest.mock import patch, AsyncMock
 from src.core.garmin_client import GarminClient
-from src.core.models import GarminMetrics
+from src.core.models import DailyMetrics, SleepMetrics, HealthMetrics, RecoveryMetrics, SwimmingMetrics
 
 
 class TestGarminClientDataFetching:
@@ -294,9 +294,27 @@ class TestGarminClientDataFetching:
         with patch.object(client, 'get_metrics', new_callable=AsyncMock) as mock_get_metrics:
             # Create fake metrics for 3 days
             fake_metrics = [
-                GarminMetrics(date=date(2024, 1, 15), sleep_score=85.0),
-                GarminMetrics(date=date(2024, 1, 16), sleep_score=90.0),
-                GarminMetrics(date=date(2024, 1, 17), sleep_score=88.0)
+                DailyMetrics(
+                    date=date(2024, 1, 15),
+                    sleep=SleepMetrics(date=date(2024, 1, 15), sleep_score=85.0),
+                    health=HealthMetrics(date=date(2024, 1, 15)),
+                    recovery=RecoveryMetrics(date=date(2024, 1, 15)),
+                    swimming=SwimmingMetrics(date=date(2024, 1, 15))
+                ),
+                DailyMetrics(
+                    date=date(2024, 1, 16),
+                    sleep=SleepMetrics(date=date(2024, 1, 16), sleep_score=90.0),
+                    health=HealthMetrics(date=date(2024, 1, 16)),
+                    recovery=RecoveryMetrics(date=date(2024, 1, 16)),
+                    swimming=SwimmingMetrics(date=date(2024, 1, 16))
+                ),
+                DailyMetrics(
+                    date=date(2024, 1, 17),
+                    sleep=SleepMetrics(date=date(2024, 1, 17), sleep_score=88.0),
+                    health=HealthMetrics(date=date(2024, 1, 17)),
+                    recovery=RecoveryMetrics(date=date(2024, 1, 17)),
+                    swimming=SwimmingMetrics(date=date(2024, 1, 17))
+                )
             ]
             mock_get_metrics.side_effect = fake_metrics
             
@@ -340,7 +358,13 @@ class TestGarminClientDataFetching:
         
         # Mock the get_metrics method to return fake data
         with patch.object(client, 'get_metrics', new_callable=AsyncMock) as mock_get_metrics:
-            fake_metric = GarminMetrics(date=date(2024, 1, 15), sleep_score=85.0)
+            fake_metric = DailyMetrics(
+                date=date(2024, 1, 15),
+                sleep=SleepMetrics(date=date(2024, 1, 15), sleep_score=85.0),
+                health=HealthMetrics(date=date(2024, 1, 15)),
+                recovery=RecoveryMetrics(date=date(2024, 1, 15)),
+                swimming=SwimmingMetrics(date=date(2024, 1, 15))
+            )
             mock_get_metrics.return_value = fake_metric
             
             # Test the date range method for single day
@@ -351,7 +375,7 @@ class TestGarminClientDataFetching:
             # Verify results
             assert len(result) == 1
             assert result[0].date == date(2024, 1, 15)
-            assert result[0].sleep_score == 85.0
+            assert result[0].sleep.sleep_score == 85.0
             
             # Verify get_metrics was called once
             assert mock_get_metrics.call_count == 1
@@ -365,9 +389,21 @@ class TestGarminClientDataFetching:
         with patch.object(client, 'get_metrics', new_callable=AsyncMock) as mock_get_metrics:
             # First day has data, second day has no data, third day has data
             fake_metrics = [
-                GarminMetrics(date=date(2024, 1, 15), sleep_score=85.0),
+                DailyMetrics(
+                    date=date(2024, 1, 15),
+                    sleep=SleepMetrics(date=date(2024, 1, 15), sleep_score=85.0),
+                    health=HealthMetrics(date=date(2024, 1, 15)),
+                    recovery=RecoveryMetrics(date=date(2024, 1, 15)),
+                    swimming=SwimmingMetrics(date=date(2024, 1, 15))
+                ),
                 None,  # No data for this day
-                GarminMetrics(date=date(2024, 1, 17), sleep_score=88.0)
+                DailyMetrics(
+                    date=date(2024, 1, 17),
+                    sleep=SleepMetrics(date=date(2024, 1, 17), sleep_score=88.0),
+                    health=HealthMetrics(date=date(2024, 1, 17)),
+                    recovery=RecoveryMetrics(date=date(2024, 1, 17)),
+                    swimming=SwimmingMetrics(date=date(2024, 1, 17))
+                )
             ]
             mock_get_metrics.side_effect = fake_metrics
             
