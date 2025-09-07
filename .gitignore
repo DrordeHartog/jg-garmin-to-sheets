@@ -27,6 +27,7 @@ logs/
 
 # OS files
 .DS_Store
+**/.DS_Store
 Thumbs.db
 
 # Build artifacts

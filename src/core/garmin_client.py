@@ -124,9 +124,9 @@ class GarminClient:
     async def _fetch_stats_data(self, date_iso: str) -> Optional[Dict[str, Any]]:
         """Fetch stats and body data for a given date."""
         try:
-            return await asyncio.get_event_loop().run_in_executor(
+                return await asyncio.get_event_loop().run_in_executor(
                 None, self.client.get_stats_and_body, date_iso
-            )
+                )
         except Exception as e:
             logger.error(f"Error fetching stats data for {date_iso}: {str(e)}")
             return None
@@ -134,9 +134,9 @@ class GarminClient:
     async def _fetch_sleep_data(self, date_iso: str) -> Optional[Dict[str, Any]]:
         """Fetch sleep data for a given date."""
         try:
-            return await asyncio.get_event_loop().run_in_executor(
+                return await asyncio.get_event_loop().run_in_executor(
                 None, self.client.get_sleep_data, date_iso
-            )
+                )
         except Exception as e:
             logger.error(f"Error fetching sleep data for {date_iso}: {str(e)}")
             return None
@@ -144,9 +144,9 @@ class GarminClient:
     async def _fetch_activities_data(self, date_iso: str) -> Optional[List[Dict[str, Any]]]:
         """Fetch activities data for a given date."""
         try:
-            return await asyncio.get_event_loop().run_in_executor(
+                return await asyncio.get_event_loop().run_in_executor(
                 None, self.client.get_activities_by_date, date_iso, date_iso
-            )
+                )
         except Exception as e:
             logger.error(f"Error fetching activities data for {date_iso}: {str(e)}")
             return None
@@ -154,9 +154,9 @@ class GarminClient:
     async def _fetch_summary_data(self, date_iso: str) -> Optional[Dict[str, Any]]:
         """Fetch user summary data for a given date."""
         try:
-            return await asyncio.get_event_loop().run_in_executor(
+                return await asyncio.get_event_loop().run_in_executor(
                 None, self.client.get_user_summary, date_iso
-            )
+                )
         except Exception as e:
             logger.error(f"Error fetching summary data for {date_iso}: {str(e)}")
             return None
@@ -164,7 +164,7 @@ class GarminClient:
     async def _fetch_training_status_data(self, date_iso: str) -> Optional[Dict[str, Any]]:
         """Fetch training status data for a given date."""
         try:
-            return await asyncio.get_event_loop().run_in_executor(
+                return await asyncio.get_event_loop().run_in_executor(
                 None, self.client.get_training_status, date_iso
             )
         except Exception as e:
@@ -216,6 +216,314 @@ class GarminClient:
             'hrv_payload': hrv_payload
         }
 
+    def _process_raw_data_to_metrics(self, target_date: date, raw_data: Dict[str, Any]) -> GarminMetrics:
+        """
+        Process raw API data into GarminMetrics object.
+        
+        Args:
+            target_date: The date for the metrics
+            raw_data: Dictionary containing all raw data types
+            
+        Returns:
+            GarminMetrics object with processed data
+        """
+        stats = raw_data.get('stats')
+        sleep_data = raw_data.get('sleep_data')
+        activities = raw_data.get('activities')
+        summary = raw_data.get('summary')
+        training_status = raw_data.get('training_status')
+        hrv_payload = raw_data.get('hrv_payload')
+        
+        # Process each data type
+        hrv_metrics = self._process_hrv_data(hrv_payload, target_date)
+        activity_metrics = self._process_activities_data(activities, target_date)
+        sleep_metrics = self._process_sleep_data(sleep_data, target_date)
+        stats_metrics = self._process_stats_data(stats, target_date)
+        summary_metrics = self._process_summary_data(summary, target_date)
+        training_metrics = self._process_training_status_data(training_status, target_date)
+        
+        # Combine all metrics
+        return GarminMetrics(
+            date=target_date,
+            # HRV metrics
+            overnight_hrv=hrv_metrics['overnight_hrv'],
+            hrv_status=hrv_metrics['hrv_status'],
+            # Activity metrics
+            all_activity_count=activity_metrics['all_activity_count'],
+            running_activity_count=activity_metrics['running_count'],
+            running_distance=activity_metrics['running_distance'],
+            cycling_activity_count=activity_metrics['cycling_count'],
+            cycling_distance=activity_metrics['cycling_distance'],
+            strength_activity_count=activity_metrics['strength_count'],
+            strength_duration=activity_metrics['strength_duration'],
+            cardio_activity_count=activity_metrics['cardio_count'],
+            cardio_duration=activity_metrics['cardio_duration'],
+            tennis_activity_count=activity_metrics['tennis_count'],
+            tennis_activity_duration=activity_metrics['tennis_duration'],
+            swim_activity_count=activity_metrics['swim_count'],
+            swim_distance_meters=activity_metrics['swim_distance'],
+            swim_laps=activity_metrics['swim_laps'],
+            swim_duration_min=activity_metrics['swim_duration'],
+            pool_swim_count=activity_metrics['pool_swim'],
+            open_water_swim_count=activity_metrics['ows_swim'],
+            swim_average_pace_per_100m=activity_metrics['swim_average_pace_per_100m'],
+            swim_max_pace_per_100m=activity_metrics['swim_max_pace_per_100m'],
+            swim_average_hr=activity_metrics['swim_average_hr'],
+            swim_max_hr=activity_metrics['swim_max_hr'],
+            swim_average_strokes_per_length=activity_metrics['swim_average_strokes_per_length'],
+            swim_average_strokes_per_minute=activity_metrics['swim_average_strokes_per_minute'],
+            avg_swolf=activity_metrics['avg_swolf'],
+            total_strokes=activity_metrics['total_strokes'],
+            # Sleep metrics
+            sleep_score=sleep_metrics['sleep_score'],
+            sleep_length=sleep_metrics['sleep_length'],
+            # Stats metrics
+            weight=stats_metrics['weight'],
+            body_fat=stats_metrics['body_fat'],
+            blood_pressure_systolic=stats_metrics['blood_pressure_systolic'],
+            blood_pressure_diastolic=stats_metrics['blood_pressure_diastolic'],
+            # Summary metrics
+            active_calories=summary_metrics['active_calories'],
+            resting_calories=summary_metrics['resting_calories'],
+            intensity_minutes=summary_metrics['intensity_minutes'],
+            resting_heart_rate=summary_metrics['resting_heart_rate'],
+            average_stress=summary_metrics['average_stress'],
+            # Training metrics
+            training_status=training_metrics['training_status'],
+            vo2max_running=training_metrics['vo2max_running'],
+            vo2max_cycling=training_metrics['vo2max_cycling']
+        )
+
+    def _process_hrv_data(self, hrv_payload: Optional[Dict[str, Any]], target_date: date) -> Dict[str, Any]:
+        """Process HRV data from raw API response."""
+        overnight_hrv_value: Optional[int] = None
+        hrv_status_value: Optional[str] = None
+        
+        if hrv_payload:
+            hrv_summary = hrv_payload.get('hrvSummary')
+            if hrv_summary:
+                overnight_hrv_value = hrv_summary.get('lastNightAvg')
+                hrv_status_value = hrv_summary.get('status')
+            else:
+                logger.warning(f"hrvSummary not found in hrv_payload for {target_date}. HRV metrics will be blank.")
+        else:
+            logger.warning(f"hrv_payload for {target_date} is None. HRV metrics will be blank.")
+        
+        return {
+            'overnight_hrv': overnight_hrv_value,
+            'hrv_status': hrv_status_value
+        }
+
+    def _process_activities_data(self, activities: Optional[List[Dict[str, Any]]], target_date: date) -> Dict[str, Any]:
+        """Process activities data from raw API response."""
+        # Initialize counters
+        running_count = 0
+        running_distance = 0
+        cycling_count = 0
+        cycling_distance = 0
+        strength_count = 0
+        strength_duration = 0
+        cardio_count = 0
+        cardio_duration = 0
+        tennis_count = 0
+        tennis_duration = 0
+        swim_count = 0
+        swim_distance = 0.0
+        swim_duration = 0.0
+        swim_laps = 0
+        pool_swim = 0
+        ows_swim = 0
+        swim_average_pace_per_100m = None
+        swim_max_pace_per_100m = None
+        swim_average_hr = None
+        swim_max_hr = None
+        swim_average_strokes_per_length = None
+        swim_average_strokes_per_minute = None
+        avg_swolf = None
+        total_strokes = None
+
+        if activities:
+            for activity in activities:
+                activity_type = activity.get('activityType', {})
+                type_key = activity_type.get('typeKey', '').lower()
+                parent_type_id = activity_type.get('parentTypeId')
+
+                if 'run' in type_key or parent_type_id == 1:  # 1 is running
+                    running_count += 1
+                    running_distance += activity.get('distance', 0) / 1000  # Convert to km
+                elif 'virtual_ride' in type_key or 'cycling' in type_key or parent_type_id == 2:  # 2 is cycling
+                    cycling_count += 1
+                    cycling_distance += activity.get('distance', 0) / 1000
+                elif 'strength' in type_key:
+                    strength_count += 1
+                    strength_duration += activity.get('duration', 0) / 60  # Convert seconds to minutes
+                elif 'cardio' in type_key:
+                    cardio_count += 1
+                    cardio_duration += activity.get('duration', 0) / 60
+                elif 'tennis' in type_key:
+                    tennis_count += 1
+                    tennis_duration += activity.get('duration', 0) / 60
+                if 'swim' in type_key or (parent_type_id == 26 and type_key == 'lap_swimming'):
+                    swim_count += 1
+                    swim_distance += activity.get('distance', 0)  # Distance is already in meters
+                    swim_duration += activity.get('duration', 0) / 60  # Convert seconds to minutes
+                    swim_laps = activity.get('lapCount', 0)
+                    
+                    # Fix division by zero issues for pace calculations
+                    avg_speed = activity.get('averageSpeed', 0)
+                    max_speed = activity.get('maxSpeed', 0)
+                    
+                    if avg_speed and avg_speed > 0:
+                        swim_average_pace_per_100m = 100 / avg_speed
+                    if max_speed and max_speed > 0:
+                        swim_max_pace_per_100m = 100 / max_speed
+                    swim_max_hr = activity.get('maxHR', 0)
+                    swim_average_hr = activity.get('averageHR', 0)
+                    swim_average_strokes_per_length = activity.get('avgStrokes', 0)
+                    swim_average_strokes_per_minute = activity.get('averageSwimCadenceInStrokesPerMinute', 0)
+                    avg_swolf = activity.get('averageSwolf', 0)
+                    total_strokes = activity.get('strokes', 0)
+        else:
+            logger.warning(f"Activities data for {target_date} is None. Activity metrics will be blank.")
+
+        return {
+            'all_activity_count': len(activities) if activities is not None else 0,
+            'running_count': running_count,
+            'running_distance': running_distance,
+            'cycling_count': cycling_count,
+            'cycling_distance': cycling_distance,
+            'strength_count': strength_count,
+            'strength_duration': strength_duration,
+            'cardio_count': cardio_count,
+            'cardio_duration': cardio_duration,
+            'tennis_count': tennis_count,
+            'tennis_duration': tennis_duration,
+            'swim_count': swim_count,
+            'swim_distance': swim_distance,
+            'swim_duration': swim_duration,
+            'swim_laps': swim_laps,
+            'pool_swim': pool_swim,
+            'ows_swim': ows_swim,
+            'swim_average_pace_per_100m': swim_average_pace_per_100m,
+            'swim_max_pace_per_100m': swim_max_pace_per_100m,
+            'swim_average_hr': swim_average_hr,
+            'swim_max_hr': swim_max_hr,
+            'swim_average_strokes_per_length': swim_average_strokes_per_length,
+            'swim_average_strokes_per_minute': swim_average_strokes_per_minute,
+            'avg_swolf': avg_swolf,
+            'total_strokes': total_strokes
+        }
+
+    def _process_sleep_data(self, sleep_data: Optional[Dict[str, Any]], target_date: date) -> Dict[str, Any]:
+        """Process sleep data from raw API response."""
+        sleep_score: Optional[float] = None
+        sleep_length: Optional[float] = None
+        
+        if sleep_data:
+            sleep_dto = sleep_data.get('dailySleepDTO', {})
+            if sleep_dto:
+                sleep_score = sleep_dto.get('sleepScores', {}).get('overall', {}).get('value')
+                sleep_time_seconds = sleep_dto.get('sleepTimeSeconds')
+                if sleep_time_seconds is not None and sleep_time_seconds > 0:
+                    sleep_length = sleep_time_seconds / 3600  # Convert to hours
+            else:
+                logger.warning(f"Daily sleep DTO not found in sleep data for {target_date}.")
+        else:
+            logger.warning(f"Sleep data for {target_date} is None. Sleep metrics will be blank.")
+        
+        return {
+            'sleep_score': sleep_score,
+            'sleep_length': sleep_length
+        }
+
+    def _process_stats_data(self, stats: Optional[Dict[str, Any]], target_date: date) -> Dict[str, Any]:
+        """Process stats and body data from raw API response."""
+        weight: Optional[float] = None
+        body_fat: Optional[float] = None
+        blood_pressure_systolic: Optional[int] = None
+        blood_pressure_diastolic: Optional[int] = None
+        
+        if stats:
+            weight = stats.get('weight', 0) / 1000 if stats.get('weight') else None  # Convert grams to kg
+            body_fat = stats.get('bodyFat')
+            blood_pressure_systolic = stats.get('systolic')
+            blood_pressure_diastolic = stats.get('diastolic')
+        else:
+            logger.warning(f"Stats data for {target_date} is None. Weight and body fat metrics will be blank.")
+        
+        return {
+            'weight': weight,
+            'body_fat': body_fat,
+            'blood_pressure_systolic': blood_pressure_systolic,
+            'blood_pressure_diastolic': blood_pressure_diastolic
+        }
+
+    def _process_summary_data(self, summary: Optional[Dict[str, Any]], target_date: date) -> Dict[str, Any]:
+        """Process user summary data from raw API response."""
+        active_calories: Optional[int] = None
+        resting_calories: Optional[int] = None
+        intensity_minutes: Optional[int] = None
+        resting_heart_rate: Optional[int] = None
+        average_stress: Optional[int] = None
+        
+        if summary:
+            active_calories = summary.get('activeKilocalories')
+            resting_calories = summary.get('bmrKilocalories')
+            intensity_minutes = (summary.get('moderateIntensityMinutes', 0) or 0) + (2 * (summary.get('vigorousIntensityMinutes', 0) or 0))
+            resting_heart_rate = summary.get('restingHeartRate')
+            average_stress = summary.get('averageStressLevel')
+        else:
+            logger.warning(f"User summary data for {target_date} is None. Summary metrics will be blank.")
+        
+        return {
+            'active_calories': active_calories,
+            'resting_calories': resting_calories,
+            'intensity_minutes': intensity_minutes,
+            'resting_heart_rate': resting_heart_rate,
+            'average_stress': average_stress
+        }
+
+    def _process_training_status_data(self, training_status: Optional[Dict[str, Any]], target_date: date) -> Dict[str, Any]:
+        """Process training status data from raw API response."""
+        vo2max_running: Optional[float] = None
+        vo2max_cycling: Optional[float] = None
+        training_status_phrase: Optional[str] = None
+        
+        if training_status:
+            most_recent_vo2max = training_status.get('mostRecentVO2Max')
+            if most_recent_vo2max:
+                generic_vo2max = most_recent_vo2max.get('generic')
+                if generic_vo2max:
+                    vo2max_running = generic_vo2max.get('vo2MaxValue')
+                
+                cycling_vo2max = most_recent_vo2max.get('cycling')
+                if cycling_vo2max:
+                    vo2max_cycling = cycling_vo2max.get('vo2MaxValue')
+
+            training_status_data = {}
+            most_recent_training_status = training_status.get('mostRecentTrainingStatus')
+            if most_recent_training_status:
+                latest_training_status_data = most_recent_training_status.get('latestTrainingStatusData')
+                if latest_training_status_data:
+                    training_status_data = latest_training_status_data
+            
+            first_device = None
+            if training_status_data:
+                for value in training_status_data.values():
+                    first_device = value
+                    break
+            
+            if first_device:
+                training_status_phrase = first_device.get('trainingStatusFeedbackPhrase')
+        else:
+            logger.warning(f"Training status data for {target_date} is None. VO2 Max and training status metrics will be blank.")
+        
+        return {
+            'vo2max_running': vo2max_running,
+            'vo2max_cycling': vo2max_cycling,
+            'training_status': training_status_phrase
+        }
+
     async def get_metrics(self, target_date: date, email: str, password: str) -> GarminMetrics:
         """Get metrics for a specific date. Re-authenticates each time for security."""
         logger.debug(f"VERIFY get_metrics: display_name: {getattr(self.client, 'display_name', 'Not Set')}, oauth2_token type: {type(self.client.garth.oauth2_token)}")
@@ -224,271 +532,11 @@ class GarminClient:
         await self.authenticate(email, password)
 
         try:
-            async def get_stats():
-                return await asyncio.get_event_loop().run_in_executor(
-                    None, self.client.get_stats_and_body, target_date.isoformat()
-                )
-
-            async def get_sleep():
-                return await asyncio.get_event_loop().run_in_executor(
-                    None, self.client.get_sleep_data, target_date.isoformat()
-                )
-
-            async def get_activities():
-                return await asyncio.get_event_loop().run_in_executor(
-                    None, self.client.get_activities_by_date, 
-                    target_date.isoformat(), target_date.isoformat()
-                )
-
-            async def get_user_summary():
-                return await asyncio.get_event_loop().run_in_executor(
-                    None, self.client.get_user_summary, target_date.isoformat()
-                )
-
-            async def get_training_status():
-                return await asyncio.get_event_loop().run_in_executor(
-                    None, self.client.get_training_status, target_date.isoformat()
-                )
+            # Use our new _fetch_raw_data method for clean data fetching
+            raw_data = await self._fetch_raw_data(target_date)
             
-            async def get_hrv():
-                return await self._fetch_hrv_data(target_date.isoformat())
-
-            # Fetch data concurrently
-            stats, sleep_data, activities, summary, training_status, hrv_payload = await asyncio.gather(
-                get_stats(), get_sleep(), get_activities(), get_user_summary(), get_training_status(), get_hrv()
-            )
-
-            # Debug logging
-            logger.debug(f"Raw stats data: {stats}")
-            logger.debug(f"Raw sleep data: {sleep_data}")
-            logger.debug(f"Raw activities data: {activities}")
-            logger.debug(f"Raw summary data: {summary}")
-            logger.debug(f"Raw training status data: {training_status}")
-            logger.debug(f"Raw HRV payload: {hrv_payload}")
-
-            # Process HRV data
-            overnight_hrv_value: Optional[int] = None
-            hrv_status_value: Optional[str] = None
-            # Process HRV data
-            if hrv_payload: # <--- Key check for hrv_payload itself
-                hrv_summary = hrv_payload.get('hrvSummary') # Get hrvSummary first
-                if hrv_summary: # <--- Key check for hrv_summary
-                    # Safely extract hrv_value (lastNightAvg)
-                    overnight_hrv_value = hrv_summary.get('lastNightAvg')
-
-                    # Safely extract hrv_status
-                    hrv_status_value = hrv_summary.get('status')
-                    # logger.info(f"Extracted HRV: {overnight_hrv_value}, Status: {hrv_status_value} for {target_date}")
-                else:
-                    logger.warning(f"hrvSummary not found in hrv_payload for {target_date}. HRV metrics will be blank.")
-            else:
-                logger.warning(f"hrv_payload for {target_date} is None. HRV metrics will be blank.")
-
-
-            # Process activities
-            running_count = 0
-            running_distance = 0
-            cycling_count = 0
-            cycling_distance = 0
-            strength_count = 0
-            strength_duration = 0
-            cardio_count = 0
-            cardio_duration = 0
-            tennis_count = 0
-            tennis_duration = 0
-            swim_count = 0
-            swim_distance = 0.0
-            swim_duration = 0.0
-            swim_laps = 0
-            pool_swim = 0
-            ows_swim = 0
-            swolf_sum = 0.0
-            swolf_n = 0
-            strokes_total = 0
-            swim_average_pace_per_100m = None
-            swim_max_pace_per_100m = None
-            swim_average_hr = None
-            swim_max_hr = None
-            swim_average_strokes_per_length = None
-            swim_average_strokes_per_minute = None
-            avg_swolf = None
-            total_strokes = None
-
-            if activities:
-                for activity in activities:
-                    activity_type = activity.get('activityType', {})
-                    type_key = activity_type.get('typeKey', '').lower()
-                    parent_type_id = activity_type.get('parentTypeId')
-
-                    if 'run' in type_key or parent_type_id == 1:  # 1 is running
-                        running_count += 1
-                        running_distance += activity.get('distance', 0) / 1000  # Convert to km
-                    elif 'virtual_ride' in type_key or 'cycling' in type_key or parent_type_id == 2:  # 2 is cycling
-                        cycling_count += 1
-                        cycling_distance += activity.get('distance', 0) / 1000
-                    elif 'strength' in type_key:
-                        strength_count += 1
-                        strength_duration += activity.get('duration', 0) / 60  # Convert seconds to minutes
-                    elif 'cardio' in type_key:
-                        cardio_count += 1
-                        cardio_duration += activity.get('duration', 0) / 60
-                    elif 'tennis' in type_key: # Added for Tennis
-                        tennis_count += 1
-                        tennis_duration += activity.get('duration', 0) / 60 # Convert seconds to minutes
-                    if 'swim' in type_key or (parent_type_id == 26 and type_key == 'lap_swimming'):  # Only actual swim activities
-                        swim_count += 1
-                        swim_distance += activity.get('distance', 0)  # Distance is already in meters
-                        swim_duration += activity.get('duration', 0) / 60  # Convert seconds to minutes
-                        swim_laps = activity.get('lapCount', 0)
-                        
-                        # Fix division by zero issues for pace calculations
-                        avg_speed = activity.get('averageSpeed', 0)
-                        max_speed = activity.get('maxSpeed', 0)
-                        
-                        if avg_speed and avg_speed > 0:
-                            swim_average_pace_per_100m = 100 / avg_speed
-                        if max_speed and max_speed > 0:
-                            swim_max_pace_per_100m = 100 / max_speed
-                        swim_max_hr = activity.get('maxHR', 0)
-                        swim_average_hr = activity.get('averageHR', 0)
-                        swim_average_strokes_per_length = activity.get('avgStrokes', 0)
-                        swim_average_strokes_per_minute = activity.get('averageSwimCadenceInStrokesPerMinute', 0)
-                        avg_swolf = activity.get('averageSwolf', 0)
-                        total_strokes = activity.get('strokes', 0)
-
-            else:
-                logger.warning(f"Activities data for {target_date} is None. Activity metrics will be blank.")
-
-            # Initialize metrics to None, as per GarminMetrics dataclass defaults
-            sleep_score: Optional[float] = None
-            sleep_length: Optional[float] = None
-            weight: Optional[float] = None
-            body_fat: Optional[float] = None
-            blood_pressure_systolic: Optional[int] = None
-            blood_pressure_diastolic: Optional[int] = None
-            active_calories: Optional[int] = None
-            resting_calories: Optional[int] = None
-            intensity_minutes: Optional[int] = None
-            resting_heart_rate: Optional[int] = None
-            average_stress: Optional[int] = None
-            vo2max_running: Optional[float] = None
-            vo2max_cycling: Optional[float] = None
-            training_status_phrase: Optional[str] = None
-
-            # Process sleep data
-            if sleep_data:
-                sleep_dto = sleep_data.get('dailySleepDTO', {})
-                if sleep_dto:
-                    sleep_score = sleep_dto.get('sleepScores', {}).get('overall', {}).get('value')
-                    sleep_time_seconds = sleep_dto.get('sleepTimeSeconds')
-                    if sleep_time_seconds is not None and sleep_time_seconds > 0:
-                        sleep_length = sleep_time_seconds / 3600  # Convert to hours
-                else:
-                    logger.warning(f"Daily sleep DTO not found in sleep data for {target_date}.")
-            else:
-                logger.warning(f"Sleep data for {target_date} is None. Sleep metrics will be blank.")
-
-            # Get weight and body fat
-            if stats:
-                weight = stats.get('weight', 0) / 1000 if stats.get('weight') else None  # Convert grams to kg
-                body_fat = stats.get('bodyFat')
-            else:
-                logger.warning(f"Stats data for {target_date} is None. Weight and body fat metrics will be blank.")
-
-            # Get blood pressure (if available)
-            if stats: # Already checked above, but for clarity
-                blood_pressure_systolic = stats.get('systolic')
-                blood_pressure_diastolic = stats.get('diastolic')
-            # No else needed, as they are initialized to None
-
-            # Get summary metrics
-            if summary:
-                active_calories = summary.get('activeKilocalories')
-                resting_calories = summary.get('bmrKilocalories')
-                intensity_minutes = (summary.get('moderateIntensityMinutes', 0) or 0) + (2 * (summary.get('vigorousIntensityMinutes', 0) or 0))
-                resting_heart_rate = summary.get('restingHeartRate')
-                average_stress = summary.get('averageStressLevel')
-            else:
-                logger.warning(f"User summary data for {target_date} is None. Summary metrics will be blank.")
-
-            # Get VO2 max values and training status
-            if training_status:
-                vo2max_running = None
-                vo2max_cycling = None
-                most_recent_vo2max = training_status.get('mostRecentVO2Max')
-                if most_recent_vo2max:
-                    generic_vo2max = most_recent_vo2max.get('generic')
-                    if generic_vo2max:
-                        vo2max_running = generic_vo2max.get('vo2MaxValue')
-                    
-                    cycling_vo2max = most_recent_vo2max.get('cycling')
-                    if cycling_vo2max:
-                        vo2max_cycling = cycling_vo2max.get('vo2MaxValue')
-
-                training_status_data = {} # Initialize to empty dict
-                most_recent_training_status = training_status.get('mostRecentTrainingStatus')
-                if most_recent_training_status:
-                    latest_training_status_data = most_recent_training_status.get('latestTrainingStatusData')
-                    if latest_training_status_data:
-                        training_status_data = latest_training_status_data
-                first_device = None
-                if training_status_data:
-                    # Get the first value from the dictionary, if any
-                    for value in training_status_data.values():
-                        first_device = value
-                        break # Take the first one and exit
-                
-                if first_device: # Check if first_device is not None
-                    training_status_phrase = first_device.get('trainingStatusFeedbackPhrase')
-                else:
-                    training_status_phrase = None # Ensure it's None if no device data or first_device is None
-            else:
-                logger.warning(f"Training status data for {target_date} is None. VO2 Max and training status metrics will be blank.")
-
-            return GarminMetrics(
-                date=target_date,
-                sleep_score=sleep_score,
-                sleep_length=sleep_length,
-                weight=weight,
-                body_fat=body_fat,
-                blood_pressure_systolic=blood_pressure_systolic,
-                blood_pressure_diastolic=blood_pressure_diastolic,
-                active_calories=active_calories,
-                resting_calories=resting_calories,
-                resting_heart_rate=resting_heart_rate,
-                average_stress=average_stress,
-                training_status=training_status_phrase,
-                vo2max_running=vo2max_running,
-                vo2max_cycling=vo2max_cycling,
-                intensity_minutes=intensity_minutes,
-                all_activity_count=len(activities) if activities is not None else 0,
-                running_activity_count=running_count,
-                running_distance=running_distance,
-                cycling_activity_count=cycling_count,
-                cycling_distance=cycling_distance,
-                strength_activity_count=strength_count,
-                strength_duration=strength_duration,
-                cardio_activity_count=cardio_count,
-                cardio_duration=cardio_duration,
-                tennis_activity_count=tennis_count, # Added for Tennis
-                tennis_activity_duration=tennis_duration, # Added for Tennis
-                overnight_hrv=overnight_hrv_value,
-                hrv_status=hrv_status_value,
-                swim_activity_count=swim_count,
-                swim_distance_meters=swim_distance,
-                swim_laps=swim_laps,
-                swim_duration_min=swim_duration,
-                pool_swim_count=pool_swim,
-                open_water_swim_count=ows_swim,
-                swim_average_pace_per_100m=swim_average_pace_per_100m,
-                swim_max_pace_per_100m=swim_max_pace_per_100m,
-                swim_average_hr=swim_average_hr,
-                swim_max_hr=swim_max_hr,
-                swim_average_strokes_per_length=swim_average_strokes_per_length,
-                swim_average_strokes_per_minute=swim_average_strokes_per_minute,
-                avg_swolf=avg_swolf,
-                total_strokes=total_strokes
-            )
+            # Process the raw data into GarminMetrics
+            return self._process_raw_data_to_metrics(target_date, raw_data)
 
         except Exception as e:
             logger.error(f"Error fetching metrics for {target_date}: {str(e)}")

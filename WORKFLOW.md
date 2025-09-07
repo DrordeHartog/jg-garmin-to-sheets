@@ -33,28 +33,45 @@ Transform the existing Garmin data sync tool into a focused swimming performance
 **Goal**: Get clean, working codebase
 **Time**: 20-25 hours
 
-#### **Day 1-2: Setup & Structure**
-- [v] Create new directory structure
-- [v] Move existing files to appropriate locations
-- [v] Update `__init__.py` files
-- [v] Test basic imports
+#### **Day 1: Setup & Structure** *(COMPLETED)*
+- [x] Create new directory structure
+- [x] Move existing files to appropriate locations
+- [x] Update `__init__.py` files
+- [x] Test basic imports
 
-#### **Day 3-4: Extract Authentication**
+#### **Day 2: Extract Authentication & Data Fetching** *(COMPLETED)*
 - [x] Move Garmin authentication logic to `core/garmin_client.py`
 - [x] Create clean authentication interface
 - [x] Update imports in main.py
 - [x] Test authentication still works
+- [x] Move metrics fetching logic to `core/garmin_client.py`
+- [x] Create clean data fetching interface
+- [x] Test data fetching functionality
 
-#### **Day 5-7: Extract Data Fetching**
-- [ ] Move metrics fetching logic to `core/garmin_client.py`
-- [ ] Create clean data fetching interface
-- [ ] Update data models
-- [ ] Test data fetching functionality
+#### **Day 3: Data Processing Refactoring**
+- [ ] Extract data processing methods from `get_metrics`
+- [ ] Create individual processing methods (`_process_hrv_data`, `_process_activities_data`, etc.)
+- [ ] Remove duplicate data fetching logic
+- [ ] Test refactored data processing
+
+#### **Day 4: Update Data Models**
+- [ ] Update `GarminMetrics` dataclass for swimming data
+- [ ] Add missing swimming fields discovered in API analysis
+- [ ] Fix pool length calculation (3333.33m → 33.33m)
+- [ ] Test updated data models
+
+#### **Day 5: Integration & Testing**
+- [ ] Test complete data flow from fetch to process
+- [ ] Validate swimming data extraction
+- [ ] Performance testing
+- [ ] Documentation updates
 
 #### **Week 1 Deliverables**
-- [ ] New directory structure
-- [ ] Extracted Garmin authentication
-- [ ] Extracted data fetching
+- [x] New directory structure
+- [x] Extracted Garmin authentication
+- [x] Extracted data fetching
+- [ ] Refactored data processing
+- [ ] Updated data models
 - [ ] Basic working system
 
 ---

@@ -92,3 +92,51 @@ Tomorrow's Goals:
 - Directory naming matters - exporters is clearer than output for source code
 - Always run tests from project root to avoid Python path issues
 - Structure refactoring should be done incrementally with testing at each step
+
+### **Day 2 - [04.09.25]**
+**Hours Worked**: 6-7 hours
+**Tasks Completed**:
+- [x] Extract authentication logic from main.py to GarminClient
+- [x] Create clean authentication interface with proper error handling
+- [x] Extract data fetching logic from main.py to GarminClient
+- [x] Create get_metrics_for_date_range method for batch processing
+- [x] Refactor _fetch_raw_data to use individual fetch methods
+- [x] Add comprehensive logging system with configurable output
+- [x] Create dedicated test file for data fetching functionality
+- [x] Add integration test with real Garmin credentials
+- [x] Discover complete swimming data structure in activities endpoint
+- [x] Add logs/ and *.log to .gitignore for security
+- [x] Add .DS_Store to .gitignore for macOS compatibility
+- [x] Update workflow.md with corrected timeline
+- [x] Commit major data fetching refactoring progress
+
+**Challenges Faced**:
+- Massive get_metrics method (280 lines) needs refactoring
+- Duplicate data fetching logic between _fetch_raw_data and get_metrics
+- Logging system needed for debugging API responses
+- Swimming data discovery required comprehensive API analysis
+- Git staging issues with sensitive log files and system files
+
+**Solutions Found**:
+- Created individual fetch methods (_fetch_stats_data, _fetch_sleep_data, etc.)
+- Built configurable logging system with swimming data analysis
+- Used real Garmin credentials for integration testing
+- Discovered rich swimming data in activities endpoint (distance, strokes, SWOLF, HR, etc.)
+- Properly configured .gitignore to exclude logs and system files
+- Updated workflow to reflect actual progress timeline
+
+**Tomorrow's Goals**:
+- [ ] Extract data processing methods from get_metrics (Day 3)
+- [ ] Create individual processing methods (_process_hrv_data, _process_activities_data, etc.)
+- [ ] Remove duplicate data fetching logic
+- [ ] Test refactored data processing
+- [ ] Update GarminMetrics dataclass for swimming data
+- [ ] Fix pool length calculation (3333.33m → 33.33m)
+
+**Key Learnings**:
+- API abstraction layer is crucial for reliable data pipelines
+- Data models provide contract-based architecture for API changes
+- Real data testing reveals actual API structure vs assumptions
+- Comprehensive logging is essential for debugging complex API responses
+- Swimming data is much richer than initially thought (strokes, SWOLF, HR, cadence)
+- Proper .gitignore prevents committing sensitive data and system files
