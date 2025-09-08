@@ -129,23 +129,82 @@ class DailyMetrics:
     swimming: SwimmingMetrics
 
 @dataclass
-class SwimmingSession:
-    """Detailed swimming session data."""
-    session_id: str
-    start_time: datetime
-    end_time: datetime
-    total_distance: float
-    total_duration: float
-    metrics: SwimmingMetrics
-    intervals: Optional[List['SwimmingInterval']] = None
+class SwimmingLength:
+    """Individual pool length data (most granular level)."""
+    length_index: int
+    start_time: Optional[datetime] = None
+    distance: Optional[float] = None  # Usually 25m, 33.33m, or 50m
+    duration: Optional[float] = None  # Time for this length in seconds
+    average_speed: Optional[float] = None  # Speed in m/s
+    max_speed: Optional[float] = None
+    average_hr: Optional[float] = None
+    max_hr: Optional[float] = None
+    total_strokes: Optional[int] = None
+    swim_stroke: Optional[str] = None  # FREESTYLE, BREASTSTROKE, etc.
+
+@dataclass
+class SwimmingLap:
+    """Lap data (grouped lengths within an interval)."""
+    lap_index: int
+    start_time: Optional[datetime] = None
+    distance: Optional[float] = None
+    duration: Optional[float] = None
+    moving_duration: Optional[float] = None
+    elapsed_duration: Optional[float] = None
+    average_speed: Optional[float] = None
+    average_moving_speed: Optional[float] = None
+    max_speed: Optional[float] = None
+    calories: Optional[float] = None
+    bmr_calories: Optional[float] = None
+    average_hr: Optional[float] = None
+    max_hr: Optional[float] = None
+    average_swim_cadence: Optional[float] = None
+    number_of_active_lengths: Optional[int] = None
+    total_strokes: Optional[int] = None
+    average_strokes: Optional[float] = None
+    average_swolf: Optional[float] = None
+    average_stroke_distance: Optional[float] = None
+    swim_drill: Optional[str] = None  # DRILL, KICK, etc.
+    lengths: Optional[List[SwimmingLength]] = None
 
 @dataclass
 class SwimmingInterval:
-    """Data for each interval/lap in a swimming session."""
-    interval_number: int
-    distance: float
-    duration: float
-    pace_per_100m: float
-    heart_rate: Optional[float] = None
-    strokes: Optional[int] = None
-    swolf: Optional[float] = None
+    """Training interval data (WARMUP, ACTIVE, REST, COOLDOWN)."""
+    interval_type: str  # INTERVAL_WARMUP, INTERVAL_ACTIVE, INTERVAL_REST, INTERVAL_COOLDOWN
+    start_time: Optional[datetime] = None
+    end_time: Optional[datetime] = None
+    distance: Optional[float] = None
+    duration: Optional[float] = None
+    moving_duration: Optional[float] = None
+    elapsed_duration: Optional[float] = None
+    average_speed: Optional[float] = None
+    calories: Optional[float] = None
+    bmr_calories: Optional[float] = None
+    average_hr: Optional[float] = None
+    max_hr: Optional[float] = None
+    total_exercise_reps: Optional[int] = None
+    message_index: Optional[int] = None
+    lap_indexes: Optional[List[int]] = None
+    laps: Optional[List[SwimmingLap]] = None
+
+@dataclass
+class SwimmingSession:
+    """Complete swimming session data with full hierarchy."""
+    session_id: str
+    start_time: Optional[datetime] = None
+    activity_id: Optional[int] = None
+    end_time: Optional[datetime] = None
+    total_distance: Optional[float] = None
+    total_duration: Optional[float] = None
+    pool_length_meters: Optional[float] = None
+    
+    # Summary metrics (from SwimmingMetrics)
+    summary_metrics: Optional[SwimmingMetrics] = None
+    
+    # Detailed interval data
+    intervals: Optional[List[SwimmingInterval]] = None
+    
+    # Raw API data for reference
+    raw_splits_data: Optional[dict] = None
+    raw_split_summaries: Optional[dict] = None
+    raw_typed_splits: Optional[dict] = None

@@ -16,7 +16,9 @@ from .models import (
     SwimmingMetrics, 
     DailyMetrics,
     SwimmingSession,
-    SwimmingInterval
+    SwimmingInterval,
+    SwimmingLap,
+    SwimmingLength
 )
 from .bitwarden_client import BitwardenClient
 
@@ -30,5 +32,7 @@ __all__ = [
     'DailyMetrics',
     'SwimmingSession',
     'SwimmingInterval',
+    'SwimmingLap',
+    'SwimmingLength',
     'BitwardenClient'
 ]

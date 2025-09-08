@@ -851,4 +851,78 @@ class GarminClient:
             logger.error(f"Bitwarden error during authentication: {str(e)}")
             raise
 
+    async def get_swimming_session_details(self, activity_id: int, email: str, password: str) -> Dict[str, Any]:
+        """
+        Get detailed swimming session data including intervals, laps, and lengths.
+        
+        Args:
+            activity_id: Garmin activity ID
+            email: Garmin email
+            password: Garmin password
+            
+        Returns:
+            Dictionary containing detailed swimming session data
+        """
+        # Authenticate
+        await self.authenticate(email, password)
+        
+        try:
+            # Fetch detailed data using the new API methods we discovered
+            splits_data = self.client.get_activity_splits(activity_id)
+            split_summaries = self.client.get_activity_split_summaries(activity_id)
+            typed_splits = self.client.get_activity_typed_splits(activity_id)
+            
+            logger.info(f"Successfully fetched detailed swimming data for activity {activity_id}")
+            
+            return {
+                'splits_data': splits_data,
+                'split_summaries': split_summaries,
+                'typed_splits': typed_splits
+            }
+            
+        except Exception as e:
+            logger.error(f"Error fetching detailed swimming data for activity {activity_id}: {e}")
+            raise
+
+    async def get_swimming_activities_with_details(self, target_date: date, email: str, password: str) -> List[Dict[str, Any]]:
+        """
+        Get swimming activities for a date with detailed interval data.
+        
+        Args:
+            target_date: Date to fetch activities for
+            email: Garmin email
+            password: Garmin password
+            
+        Returns:
+            List of swimming activities with detailed data
+        """
+        # Authenticate
+        await self.authenticate(email, password)
+        
+        try:
+            # Get activities for the date
+            activities = self.client.get_activities_by_date(target_date, target_date)
+            
+            swimming_activities = []
+            for activity in activities:
+                if activity.get('activityType', {}).get('typeKey') == 'lap_swimming':
+                    activity_id = activity['activityId']
+                    
+                    # Get detailed data for this swimming activity
+                    detailed_data = await self.get_swimming_session_details(activity_id, email, password)
+                    
+                    # Combine basic activity data with detailed data
+                    swimming_activity = {
+                        'basic_data': activity,
+                        'detailed_data': detailed_data
+                    }
+                    swimming_activities.append(swimming_activity)
+            
+            logger.info(f"Found {len(swimming_activities)} swimming activities for {target_date}")
+            return swimming_activities
+            
+        except Exception as e:
+            logger.error(f"Error fetching swimming activities for {target_date}: {e}")
+            raise
+
 
