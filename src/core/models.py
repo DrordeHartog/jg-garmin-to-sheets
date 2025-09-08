@@ -66,6 +66,11 @@ class RecoveryMetrics:
     
     # Stress & Recovery
     average_stress: Optional[int] = None
+    resting_heart_rate: Optional[int] = None
+    
+    # Key Sleep Metrics (for recovery analysis)
+    sleep_score: Optional[float] = None
+    sleep_time_seconds: Optional[int] = None
 
 @dataclass
 class SwimmingMetrics:
