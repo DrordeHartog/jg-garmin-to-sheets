@@ -44,18 +44,9 @@ def create_tables(conn: sqlite3.Connection) -> None:
     conn.execute("""
         CREATE TABLE IF NOT EXISTS recovery (
             date DATE PRIMARY KEY,
-            -- Sleep metrics
+            -- Sleep metrics (only fields we actually extract from API)
             sleep_time_seconds INTEGER,
-            nap_time_seconds INTEGER,
-            deep_sleep_seconds INTEGER,
-            light_sleep_seconds INTEGER,
-            rem_sleep_seconds INTEGER,
-            awake_sleep_seconds INTEGER,
             sleep_score REAL,
-            average_respiration REAL,
-            awake_count INTEGER,
-            avg_sleep_stress REAL,
-            avg_heart_rate REAL,
             -- HRV metrics
             hrv_last_night_avg INTEGER,
             hrv_weekly_avg INTEGER,
