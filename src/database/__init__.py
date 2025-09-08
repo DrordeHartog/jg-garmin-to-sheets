@@ -10,11 +10,9 @@ This package handles all database operations including:
 
 from .database_manager import DatabaseManager
 from .schema import create_tables, drop_tables
-from .operations import DatabaseOperations
 
 __all__ = [
     'DatabaseManager',
     'create_tables',
-    'drop_tables', 
-    'DatabaseOperations'
+    'drop_tables'
 ]
