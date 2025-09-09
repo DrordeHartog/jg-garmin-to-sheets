@@ -20,9 +20,9 @@ sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 from src.database.database_manager import DatabaseManager
 from src.database.schema import create_tables
-from src.orchestration.processors.recovery_processor import RecoveryProcessor
-from src.core.garmin_client import GarminClient
-from src.utils.logging_config import setup_custom_logging
+from src.etl.processors.recovery_processor import RecoveryProcessor
+from src.ingestion.garmin_client import GarminClient
+from src.shared.logging_config import setup_custom_logging
 import logging
 
 logger = logging.getLogger(__name__)

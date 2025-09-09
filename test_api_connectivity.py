@@ -17,8 +17,8 @@ from pathlib import Path
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
-from src.core.garmin_client import GarminClient
-from src.utils.logging_config import setup_custom_logging
+from src.ingestion.garmin_client import GarminClient
+from src.shared.logging_config import setup_custom_logging
 import logging
 
 logger = logging.getLogger(__name__)

@@ -4,7 +4,7 @@ Tests for the refactored authentication logic in GarminClient.
 import pytest
 import os
 from unittest.mock import Mock, patch, AsyncMock
-from src.core.garmin_client import GarminClient
+from src.ingestion.garmin_client import GarminClient
 from src.exceptions import MFARequiredException
 
 
@@ -72,7 +72,7 @@ class TestGarminClientAuthentication:
         mfa_error2 = Exception("Authentication failed - MFA needed")
         
         # Mock the GarminConnectAuthenticationError
-        with patch('src.core.garmin_client.garminconnect') as mock_garmin:
+        with patch('src.ingestion.garmin_client.garminconnect') as mock_garmin:
             mock_garmin.GarminConnectAuthenticationError = Exception
             
             assert client._is_mfa_required(mfa_error1) is True
@@ -121,7 +121,7 @@ class TestGarminClientAuthentication:
         client = GarminClient()
         
         # Mock successful login
-        with patch('src.core.garmin_client.garminconnect') as mock_garmin:
+        with patch('src.ingestion.garmin_client.garminconnect') as mock_garmin:
             mock_garmin_client = Mock()
             mock_garmin_client.login.return_value = True
             mock_garmin.Garmin.return_value = mock_garmin_client
@@ -143,7 +143,7 @@ class TestGarminClientAuthentication:
         client = GarminClient()
         
         # Mock MFA-required error
-        with patch('src.core.garmin_client.garminconnect') as mock_garmin:
+        with patch('src.ingestion.garmin_client.garminconnect') as mock_garmin:
             mock_garmin_client = Mock()
             mock_garmin_client.login.side_effect = AttributeError("'dict' object has no attribute 'expired'")
             mock_garmin_client.garth = Mock()

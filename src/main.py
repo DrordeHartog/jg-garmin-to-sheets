@@ -10,8 +10,8 @@ from pathlib import Path # Added import
 from dotenv import load_dotenv, find_dotenv # Make sure find_dotenv is imported
 import logging
 
-from src.garmin_client import GarminClient
-from src.sheets_client import GoogleSheetsClient, GoogleAuthTokenRefreshError # Added import
+from src.ingestion.garmin_client import GarminClient
+from src.exporters.sheets_client import GoogleSheetsClient, GoogleAuthTokenRefreshError # Added import
 import re # Added for regex matching
 from garth.exc import GarthHTTPError # Import the specific Garmin error
 from src.exceptions import MFARequiredException

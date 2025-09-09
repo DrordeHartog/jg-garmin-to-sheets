@@ -7,7 +7,7 @@ into SleepMetrics, HealthMetrics, RecoveryMetrics, and SwimmingMetrics.
 
 import pytest
 from datetime import date
-from src.core.models import (
+from src.shared.models import (
     SleepMetrics, 
     HealthMetrics, 
     RecoveryMetrics, 

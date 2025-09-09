@@ -5,8 +5,8 @@ import pytest
 import asyncio
 from datetime import date
 from unittest.mock import patch, AsyncMock
-from src.core.garmin_client import GarminClient
-from src.core.models import DailyMetrics, SleepMetrics, HealthMetrics, RecoveryMetrics, SwimmingMetrics
+from src.ingestion.garmin_client import GarminClient
+from src.shared.models import DailyMetrics, SleepMetrics, HealthMetrics, RecoveryMetrics, SwimmingMetrics
 
 
 class TestGarminClientDataFetching:
@@ -87,7 +87,7 @@ class TestGarminClientDataFetching:
         """Test data fetching with real Garmin credentials - INTEGRATION TEST."""
         from dotenv import load_dotenv
         import os
-        from src.utils import setup_custom_logging, get_logger, log_swimming_data
+        from src.shared.logging_config import setup_custom_logging, get_logger, log_swimming_data
         
         # Setup logging to file for this test
         setup_custom_logging(level="DEBUG", output="file", log_file="logs/test_data_fetching.log")

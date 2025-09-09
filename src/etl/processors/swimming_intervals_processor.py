@@ -6,7 +6,7 @@ from datetime import date
 from typing import Dict, Any, List
 
 from ...database.database_manager import DatabaseManager
-from ...core.models import SwimmingInterval
+from ...shared.models import SwimmingInterval
 from .base_processor import BaseTableProcessor
 
 
