@@ -647,5 +647,97 @@ Transform our working ETL pipeline into a **production-ready, enterprise-grade d
 - **Rate Limiting Reality**: External APIs have strict rate limits requiring robust retry strategies
 - **Data Quality**: Real-world data import success rates are often lower than expected
 - **Duplicate Prevention**: Essential for production ETL pipelines with resume capability
+
+---
+
+### **Day 8 - [09.09.25] - Logging & Monitoring System Implementation**
+**Hours Worked**: 6-7 hours
+**Branch**: `feature/etl-orchestration`
+
+#### **Tasks Completed**:
+- [x] **Repository Restructuring**: Complete service-based architecture migration
+  - [x] Move `src/core/*` to `src/ingestion/` and `src/shared/`
+  - [x] Move `src/orchestration/*` to `src/etl/`
+  - [x] Move `src/ui/*` to `src/dashboard/`
+  - [x] Move `src/utils/*` to `src/shared/`
+  - [x] Create new service directories: `monitoring`, `infrastructure`, `docs`, `scripts`
+  - [x] Update all import paths across codebase and tests
+  - [x] Fix 29 core tests to work with new structure
+  - [x] Commit repository restructuring with comprehensive documentation
+
+- [x] **Comprehensive Logging System**: Implement production-grade monitoring infrastructure
+  - [x] **Structured Logging** (`src/monitoring/logging_config.py`):
+    - [x] JSON-based structured logs with service separation
+    - [x] SQLite metrics database with proper indexing for Grafana
+    - [x] Job context manager for automatic logging
+    - [x] File-based logging with service-specific log files
+  - [x] **Discord Notifications** (`src/monitoring/discord_notifier.py`):
+    - [x] Rich embed messages with colors and structured data
+    - [x] Job start/success/failure notifications
+    - [x] Rate limiting alerts and system health notifications
+    - [x] Daily summary reports and critical alert escalation
+    - [x] Webhook integration with error handling
+  - [x] **Metrics Collection** (`src/monitoring/metrics_collector.py`):
+    - [x] Job metrics (duration, success rate, records processed)
+    - [x] API metrics (response times, rate limits, error rates)
+    - [x] System metrics (CPU, memory, health status)
+    - [x] Health monitoring and alerting capabilities
+
+- [x] **Discord Integration**: Set up webhook notifications
+  - [x] Create Discord channel `#health-etl-logs`
+  - [x] Set up webhook with proper permissions
+  - [x] Test webhook connectivity and message delivery
+  - [x] Validate rich embed formatting and notifications
+
+- [x] **Comprehensive Testing**: Full system validation
+  - [x] Create `test_logging_system.py` with complete test suite
+  - [x] Test structured logging, metrics collection, and Discord notifications
+  - [x] Validate SQLite database schema and Grafana compatibility
+  - [x] Test job context manager and error handling
+  - [x] Verify all 29 core tests still pass after restructuring
+
+#### **Challenges Faced**:
+- **Import Path Updates**: Extensive refactoring required updating all import statements across the codebase
+- **Test Compatibility**: Ensuring all existing tests work with new service structure
+- **Discord Webhook Setup**: Initial confusion between Discord app webhooks vs channel webhooks
+- **Database Schema Design**: Creating proper indexes and relationships for Grafana queries
+
+#### **Solutions Found**:
+- **Systematic Import Updates**: Used grep to find all import statements and updated them systematically
+- **Test Validation**: Ran comprehensive test suite to ensure no regressions
+- **Discord Channel Webhooks**: Used correct Discord channel webhook approach instead of app webhooks
+- **Grafana-Ready Schema**: Designed SQLite schema with proper indexes and time-series structure
+
+#### **Technical Achievements**:
+- **Enterprise Architecture**: Service-based structure demonstrating understanding of microservices patterns
+- **Production Monitoring**: Comprehensive logging and metrics collection system
+- **Real-time Notifications**: Discord webhook integration with rich embeds
+- **Grafana Compatibility**: SQLite database designed for dashboard visualization
+- **Fault Tolerance**: Error handling and graceful degradation in notification system
+
+#### **Files Created/Modified**:
+- `src/monitoring/` - Complete monitoring infrastructure
+- `src/ingestion/` - Data ingestion services
+- `src/etl/` - ETL processing services  
+- `src/dashboard/` - Dashboard services
+- `src/shared/` - Shared utilities and models
+- `test_logging_system.py` - Comprehensive test suite
+- `requirements.txt` - Added monitoring dependencies
+- `data/metrics.db` - SQLite metrics database
+- `logs/` - Structured log files
+
+#### **Tomorrow's Goals**:
+- [ ] **ETL Orchestrator**: Implement main orchestrator with APScheduler
+- [ ] **Load Management**: Add rate limiting and circuit breaker patterns
+- [ ] **Webhook API**: Create Flask-based API for external job triggers
+- [ ] **Job Scheduling**: Implement cron-based job scheduling
+- [ ] **Integration Testing**: Test orchestrator with existing ETL processors
+
+#### **Key Learnings**:
+- **Service Architecture**: Clean separation of concerns improves maintainability and demonstrates enterprise thinking
+- **Monitoring First**: Implementing monitoring infrastructure early provides visibility into system behavior
+- **Discord Integration**: Webhook-based notifications are perfect for ETL pipeline monitoring
+- **Grafana Readiness**: Proper database schema design enables powerful dashboard visualization
+- **Production Readiness**: Comprehensive logging and metrics are essential for production systems
 - **Database-First Approach**: Structured data in database enables much easier EDA than raw API responses
 - **Production Readiness**: Real data testing reveals issues that unit tests cannot catch

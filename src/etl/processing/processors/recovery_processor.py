@@ -5,9 +5,8 @@ Processor for recovery table.
 from datetime import date
 from typing import Dict, Any, Optional
 
-from ...database.database_manager import DatabaseManager
-from ...shared.models import RecoveryMetrics
-from .base_processor import BaseTableProcessor
+from .base_processor import BaseTableProcessor, DatabaseManager
+from ....shared.models import RecoveryMetrics
 
 
 class RecoveryProcessor(BaseTableProcessor):
