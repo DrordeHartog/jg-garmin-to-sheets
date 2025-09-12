@@ -21,6 +21,12 @@ credentials/
 logs/
 *.log
 
+# Database files (contain personal data)
+*.db
+*.sqlite
+*.sqlite3
+data/*.db
+
 # IDE files
 .idea/
 .vscode/
