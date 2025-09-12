@@ -6,6 +6,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 from typing import Optional, List, Dict, Any
+from datetime import date
 from .config import OrchestratorConfig, JobConfig, JobResult, JobStatus
 from .load_manager import LoadManager
 from .job_manager import JobManager
@@ -22,15 +23,68 @@ class ETLOrchestrator:
         self.job_manager = JobManager(config.max_concurrent_jobs)
         self.webhook_api = WebhookAPI(self)
         
+        # Initialize database manager for ETL operations
+        from ...database.database_manager import DatabaseManager
+        self.db_manager = DatabaseManager(config.database_path)
+        
+        # Initialize recovery processor for ETL operations
+        from ..processing.processors.recovery_processor import RecoveryProcessor
+        self.recovery_processor = RecoveryProcessor()
+        
+        # Initialize Garmin client for data fetching
+        from ...ingestion.garmin_client import GarminClient
+        self.garmin_client = GarminClient()
+        
+        # Setup logging
+        import logging
+        self.logger = logging.getLogger(__name__)
+        
+        self.logger.info(f"ETL Orchestrator initialized with database: {config.database_path}")
+        
     async def start(self) -> None:
         """Start the orchestrator and all services."""
-        # TODO: Implement orchestrator startup
-        pass
+        try:
+            self.logger.info("Starting ETL Orchestrator...")
+            
+            # Database is already initialized in DatabaseManager.__init__
+            self.logger.info("Database ready")
+            
+            # Start scheduler (will be used in Step 4)
+            # self.scheduler.start()
+            # self.logger.info("Scheduler started")
+            
+            # Start webhook API (will be used in Step 5)
+            # await self.webhook_api.start_server()
+            # self.logger.info("Webhook API started")
+            
+            self.logger.info("ETL Orchestrator started successfully")
+            
+        except Exception as e:
+            self.logger.error(f"Failed to start ETL Orchestrator: {e}")
+            raise
         
     async def stop(self) -> None:
         """Gracefully stop the orchestrator."""
-        # TODO: Implement orchestrator shutdown
-        pass
+        try:
+            self.logger.info("Stopping ETL Orchestrator...")
+            
+            # Stop scheduler (will be used in Step 4)
+            # if self.scheduler.running:
+            #     self.scheduler.shutdown()
+            #     self.logger.info("Scheduler stopped")
+            
+            # Stop webhook API (will be used in Step 5)
+            # await self.webhook_api.stop_server()
+            # self.logger.info("Webhook API stopped")
+            
+            # Close database connections
+            # Database connections are managed by context managers, so no explicit cleanup needed
+            
+            self.logger.info("ETL Orchestrator stopped successfully")
+            
+        except Exception as e:
+            self.logger.error(f"Error stopping ETL Orchestrator: {e}")
+            raise
         
     async def trigger_etl_job(self, job_type: str, **kwargs) -> JobResult:
         """Manually trigger an ETL job."""
@@ -67,10 +121,84 @@ class ETLOrchestrator:
         # TODO: Implement health check scheduling
         pass
         
-    async def execute_recovery_etl(self) -> JobResult:
+    async def execute_recovery_etl(self, target_date: date = None) -> JobResult:
         """Execute recovery data ETL job."""
-        # TODO: Implement recovery ETL execution
-        pass
+        from datetime import datetime
+        import time
+        
+        job_id = f"recovery_etl_{int(time.time())}"
+        start_time = datetime.now()
+        
+        try:
+            self.logger.info(f"Starting recovery ETL job {job_id} for date: {target_date or 'today'}")
+            
+            # Use today's date if not specified
+            if target_date is None:
+                target_date = date.today()
+            
+            # Check rate limits before making API calls
+            if not await self.load_manager.can_make_request("garmin"):
+                self.logger.warning("Rate limit reached, waiting...")
+                await self.load_manager.wait_for_rate_limit("garmin")
+            
+            # Extract: Fetch data from Garmin API
+            self.logger.info(f"Fetching recovery data for {target_date}")
+            raw_data = await self.garmin_client.get_recovery_data(target_date)
+            
+            # Record API request
+            await self.load_manager.record_request("garmin", raw_data is not None)
+            
+            if not raw_data:
+                self.logger.warning(f"No recovery data found for {target_date}")
+                return JobResult(
+                    job_id=job_id,
+                    status=JobStatus.COMPLETED,
+                    start_time=start_time,
+                    end_time=datetime.now(),
+                    duration_ms=(datetime.now() - start_time).total_seconds() * 1000,
+                    records_processed=0,
+                    errors=["No data available for target date"]
+                )
+            
+            # Transform: Process data using RecoveryProcessor
+            self.logger.info("Transforming recovery data")
+            extracted_data = self.recovery_processor.extract(raw_data, target_date)
+            transformed_data = self.recovery_processor.transform(extracted_data, target_date)
+            
+            # Load: Store data in database
+            self.logger.info("Loading recovery data to database")
+            records_processed = await self.recovery_processor.load(transformed_data, self.db_manager)
+            
+            end_time = datetime.now()
+            duration_ms = (end_time - start_time).total_seconds() * 1000
+            
+            self.logger.info(f"Recovery ETL job {job_id} completed successfully. Records processed: {records_processed}")
+            
+            return JobResult(
+                job_id=job_id,
+                status=JobStatus.COMPLETED,
+                start_time=start_time,
+                end_time=end_time,
+                duration_ms=duration_ms,
+                records_processed=records_processed,
+                errors=[]
+            )
+            
+        except Exception as e:
+            end_time = datetime.now()
+            duration_ms = (end_time - start_time).total_seconds() * 1000
+            
+            self.logger.error(f"Recovery ETL job {job_id} failed: {e}")
+            
+            return JobResult(
+                job_id=job_id,
+                status=JobStatus.FAILED,
+                start_time=start_time,
+                end_time=end_time,
+                duration_ms=duration_ms,
+                records_processed=0,
+                errors=[str(e)]
+            )
         
     async def execute_swimming_etl(self) -> JobResult:
         """Execute swimming data ETL job."""
