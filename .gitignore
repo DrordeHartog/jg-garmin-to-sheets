@@ -27,6 +27,9 @@ logs/
 *.sqlite3
 data/*.db
 
+# Cache files (contain personal API data)
+data/cache/
+
 # IDE files
 .idea/
 .vscode/
