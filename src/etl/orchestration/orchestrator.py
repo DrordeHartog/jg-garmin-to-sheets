@@ -7,6 +7,9 @@ from apscheduler.triggers.cron import CronTrigger
 from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 from typing import Optional, List, Dict, Any
 from datetime import date
+import json
+import os
+from pathlib import Path
 from .config import OrchestratorConfig, JobConfig, JobResult, JobStatus
 from .load_manager import LoadManager
 from .job_manager import JobManager
@@ -34,6 +37,11 @@ class ETLOrchestrator:
         # Initialize Garmin client for data fetching
         from ...ingestion.garmin_client import GarminClient
         self.garmin_client = GarminClient()
+        
+        # Initialize cache directory and settings
+        self.cache_dir = Path("data/cache")
+        self.cache_dir.mkdir(parents=True, exist_ok=True)
+        self.max_cache_size_mb = 100  # 100MB cache limit
         
         # Setup logging
         import logging
@@ -132,23 +140,96 @@ class ETLOrchestrator:
             self.logger.error(f"Garmin authentication failed: {e}")
             return False
     
+    def _get_cache_file_path(self, target_date: date) -> Path:
+        """Get the cache file path for a given date."""
+        return self.cache_dir / f"{target_date}.json"
+    
+    def _load_from_cache(self, target_date: date) -> Optional[Dict[str, Any]]:
+        """Load raw data from cache if it exists."""
+        cache_file = self._get_cache_file_path(target_date)
+        if cache_file.exists():
+            try:
+                with open(cache_file, 'r') as f:
+                    raw_data = json.load(f)
+                self.logger.info(f"Loaded cached data for {target_date} ({cache_file.stat().st_size / 1024:.1f} KB)")
+                return raw_data
+            except Exception as e:
+                self.logger.warning(f"Failed to load cache for {target_date}: {e}")
+                return None
+        return None
+    
+    def _save_to_cache(self, target_date: date, raw_data: Dict[str, Any]) -> None:
+        """Save raw data to cache and manage cache size."""
+        cache_file = self._get_cache_file_path(target_date)
+        
+        try:
+            # Save to cache
+            with open(cache_file, 'w') as f:
+                json.dump(raw_data, f, indent=2)
+            
+            file_size_kb = cache_file.stat().st_size / 1024
+            self.logger.info(f"Cached data for {target_date} ({file_size_kb:.1f} KB)")
+            
+            # Check cache size and cleanup if needed
+            self._cleanup_cache_if_needed()
+            
+        except Exception as e:
+            self.logger.error(f"Failed to save cache for {target_date}: {e}")
+    
+    def _cleanup_cache_if_needed(self) -> None:
+        """Clean up cache files if total size exceeds limit."""
+        try:
+            # Calculate total cache size
+            total_size_mb = sum(f.stat().st_size for f in self.cache_dir.glob("*.json")) / (1024 * 1024)
+            
+            if total_size_mb > self.max_cache_size_mb:
+                self.logger.info(f"Cache size ({total_size_mb:.1f} MB) exceeds limit ({self.max_cache_size_mb} MB), cleaning up...")
+                
+                # Get all cache files sorted by modification time (oldest first)
+                cache_files = sorted(
+                    self.cache_dir.glob("*.json"),
+                    key=lambda f: f.stat().st_mtime
+                )
+                
+                # Remove oldest files until under limit
+                for cache_file in cache_files:
+                    if total_size_mb <= self.max_cache_size_mb * 0.8:  # Clean to 80% of limit
+                        break
+                    
+                    file_size_mb = cache_file.stat().st_size / (1024 * 1024)
+                    cache_file.unlink()
+                    total_size_mb -= file_size_mb
+                    self.logger.info(f"Removed old cache file: {cache_file.name}")
+                
+                self.logger.info(f"Cache cleanup complete. New size: {total_size_mb:.1f} MB")
+                
+        except Exception as e:
+            self.logger.error(f"Cache cleanup failed: {e}")
+    
     async def fetch_and_cache_raw_data(self, target_date: date) -> Optional[Dict[str, Any]]:
         """Fetch raw data from Garmin API and cache it."""
+        # Check cache first
+        cached_data = self._load_from_cache(target_date)
+        if cached_data is not None:
+            return cached_data
+        
         try:
             # Check rate limits before making API calls
             if not await self.load_manager.can_make_request("garmin"):
                 self.logger.warning("Rate limit reached, waiting...")
                 await self.load_manager.wait_for_rate_limit("garmin")
             
-            # Fetch raw data
-            self.logger.info(f"Fetching raw data for {target_date}")
+            # Fetch raw data from API
+            self.logger.info(f"Fetching raw data from API for {target_date}")
             raw_data = await self.garmin_client._fetch_raw_data(target_date)
             
             # Record API request
             await self.load_manager.record_request("garmin", raw_data is not None)
             
             if raw_data:
-                self.logger.info(f"Successfully cached raw data for {target_date}")
+                # Save to cache
+                self._save_to_cache(target_date, raw_data)
+                self.logger.info(f"Successfully fetched and cached raw data for {target_date}")
                 return raw_data
             else:
                 self.logger.warning(f"No raw data found for {target_date}")
