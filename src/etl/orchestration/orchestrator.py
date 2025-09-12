@@ -121,8 +121,45 @@ class ETLOrchestrator:
         # TODO: Implement health check scheduling
         pass
         
-    async def execute_recovery_etl(self, target_date: date = None) -> JobResult:
-        """Execute recovery data ETL job."""
+    async def authenticate_garmin(self, email: str, password: str) -> bool:
+        """Authenticate with Garmin API."""
+        try:
+            self.logger.info("Authenticating with Garmin API")
+            await self.garmin_client.authenticate(email, password)
+            self.logger.info("Garmin authentication successful")
+            return True
+        except Exception as e:
+            self.logger.error(f"Garmin authentication failed: {e}")
+            return False
+    
+    async def fetch_and_cache_raw_data(self, target_date: date) -> Optional[Dict[str, Any]]:
+        """Fetch raw data from Garmin API and cache it."""
+        try:
+            # Check rate limits before making API calls
+            if not await self.load_manager.can_make_request("garmin"):
+                self.logger.warning("Rate limit reached, waiting...")
+                await self.load_manager.wait_for_rate_limit("garmin")
+            
+            # Fetch raw data
+            self.logger.info(f"Fetching raw data for {target_date}")
+            raw_data = await self.garmin_client._fetch_raw_data(target_date)
+            
+            # Record API request
+            await self.load_manager.record_request("garmin", raw_data is not None)
+            
+            if raw_data:
+                self.logger.info(f"Successfully cached raw data for {target_date}")
+                return raw_data
+            else:
+                self.logger.warning(f"No raw data found for {target_date}")
+                return None
+                
+        except Exception as e:
+            self.logger.error(f"Failed to fetch raw data for {target_date}: {e}")
+            return None
+    
+    async def execute_recovery_etl(self, raw_data: Dict[str, Any], target_date: date) -> JobResult:
+        """Execute recovery data ETL job using cached raw data."""
         from datetime import datetime
         import time
         
@@ -130,26 +167,10 @@ class ETLOrchestrator:
         start_time = datetime.now()
         
         try:
-            self.logger.info(f"Starting recovery ETL job {job_id} for date: {target_date or 'today'}")
-            
-            # Use today's date if not specified
-            if target_date is None:
-                target_date = date.today()
-            
-            # Check rate limits before making API calls
-            if not await self.load_manager.can_make_request("garmin"):
-                self.logger.warning("Rate limit reached, waiting...")
-                await self.load_manager.wait_for_rate_limit("garmin")
-            
-            # Extract: Fetch data from Garmin API
-            self.logger.info(f"Fetching recovery data for {target_date}")
-            raw_data = await self.garmin_client.get_recovery_data(target_date)
-            
-            # Record API request
-            await self.load_manager.record_request("garmin", raw_data is not None)
+            self.logger.info(f"Starting recovery ETL job {job_id} for date: {target_date}")
             
             if not raw_data:
-                self.logger.warning(f"No recovery data found for {target_date}")
+                self.logger.warning(f"No raw data available for recovery processing on {target_date}")
                 return JobResult(
                     job_id=job_id,
                     status=JobStatus.COMPLETED,
@@ -157,7 +178,7 @@ class ETLOrchestrator:
                     end_time=datetime.now(),
                     duration_ms=(datetime.now() - start_time).total_seconds() * 1000,
                     records_processed=0,
-                    errors=["No data available for target date"]
+                    errors=["No raw data available"]
                 )
             
             # Transform: Process data using RecoveryProcessor
