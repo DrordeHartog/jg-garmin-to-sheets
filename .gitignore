@@ -30,6 +30,9 @@ data/*.db
 # Cache files (contain personal API data)
 data/cache/
 
+# Temporary scripts (may contain test credentials)
+scripts/temp/
+
 # IDE files
 .idea/
 .vscode/

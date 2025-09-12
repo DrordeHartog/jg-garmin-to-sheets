@@ -206,6 +206,76 @@ class ETLOrchestrator:
         except Exception as e:
             self.logger.error(f"Cache cleanup failed: {e}")
     
+    async def _fetch_detailed_swimming_data(self, raw_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Fetch detailed swimming data for all swimming activities in the raw data."""
+        if not raw_data or 'activities' not in raw_data:
+            return raw_data
+        
+        # Find all swimming activities
+        swimming_activities = [
+            activity for activity in raw_data['activities'] 
+            if activity.get('activityType', {}).get('typeKey') == 'lap_swimming'
+        ]
+        
+        if not swimming_activities:
+            self.logger.info("No swimming activities found, skipping detailed data fetch")
+            return raw_data
+        
+        self.logger.info(f"Found {len(swimming_activities)} swimming activities, fetching detailed data...")
+        
+        # Fetch detailed data for each swimming activity
+        for i, activity in enumerate(swimming_activities):
+            activity_id = activity.get('activityId')
+            activity_name = activity.get('activityName', 'Unknown')
+            
+            if not activity_id:
+                self.logger.warning(f"Skipping swimming activity {i+1}: no activity ID")
+                continue
+            
+            try:
+                # Check rate limits before making API calls
+                if not await self.load_manager.can_make_request("garmin"):
+                    self.logger.warning("Rate limit reached, waiting...")
+                    await self.load_manager.wait_for_rate_limit("garmin")
+                
+                self.logger.info(f"Fetching detailed data for swimming activity: {activity_name} (ID: {activity_id})")
+                
+                # Fetch detailed swimming data using the already authenticated client
+                try:
+                    splits_data = self.garmin_client.client.get_activity_splits(activity_id)
+                    split_summaries = self.garmin_client.client.get_activity_split_summaries(activity_id)
+                    typed_splits = self.garmin_client.client.get_activity_typed_splits(activity_id)
+                    
+                    detailed_data = {
+                        'splits_data': splits_data,
+                        'split_summaries': split_summaries,
+                        'typed_splits': typed_splits
+                    }
+                except Exception as api_error:
+                    self.logger.error(f"API error fetching detailed data for {activity_name}: {api_error}")
+                    detailed_data = None
+                
+                # Record API request
+                await self.load_manager.record_request("garmin", detailed_data is not None)
+                
+                if detailed_data:
+                    # Add detailed data to the activity
+                    activity['detailed_swimming_data'] = detailed_data
+                    self.logger.info(f"Successfully fetched detailed data for {activity_name}")
+                else:
+                    self.logger.warning(f"No detailed data found for {activity_name}")
+                
+                # Add small delay to respect rate limits
+                import asyncio
+                await asyncio.sleep(1)
+                
+            except Exception as e:
+                self.logger.error(f"Failed to fetch detailed data for {activity_name} (ID: {activity_id}): {e}")
+                # Continue with other activities even if one fails
+                continue
+        
+        return raw_data
+
     async def fetch_and_cache_raw_data(self, target_date: date) -> Optional[Dict[str, Any]]:
         """Fetch raw data from Garmin API and cache it."""
         # Check cache first
@@ -227,10 +297,13 @@ class ETLOrchestrator:
             await self.load_manager.record_request("garmin", raw_data is not None)
             
             if raw_data:
-                # Save to cache
-                self._save_to_cache(target_date, raw_data)
-                self.logger.info(f"Successfully fetched and cached raw data for {target_date}")
-                return raw_data
+                # Fetch detailed swimming data for all swimming activities
+                enhanced_raw_data = await self._fetch_detailed_swimming_data(raw_data)
+                
+                # Save enhanced data to cache
+                self._save_to_cache(target_date, enhanced_raw_data)
+                self.logger.info(f"Successfully fetched and cached enhanced raw data for {target_date}")
+                return enhanced_raw_data
             else:
                 self.logger.warning(f"No raw data found for {target_date}")
                 return None
