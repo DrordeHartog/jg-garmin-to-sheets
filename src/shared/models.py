@@ -153,6 +153,7 @@ class SwimmingLap:
     lap_id: str  # Composite key: session_id_lap_index
     interval_id: Optional[int] = None  # Will be set during load phase
     lap_index: Optional[int] = None
+    wkt_step_index: Optional[int] = None  # Workout step index for interval mapping
     start_time: Optional[datetime] = None
     distance: Optional[float] = None
     duration: Optional[float] = None  # Raw duration from API

@@ -119,6 +119,43 @@ class SwimmingIntervalsProcessor(BaseTableProcessor):
         )
     
     async def load(self, data: List[SwimmingInterval], db_manager: DatabaseManager) -> int:
-        """Load SwimmingIntervalRecord into database."""
-        # TODO: Implement database insertion
-        return 0
+        """Load SwimmingInterval data into database using batch insertion."""
+        if not data:
+            return 0
+        
+        # Prepare batch data for insertion
+        batch_data = []
+        for interval in data:
+            batch_data.append((
+                interval.session_id,
+                interval.interval_type,
+                interval.start_time.isoformat() if interval.start_time else None,
+                interval.end_time.isoformat() if interval.end_time else None,
+                interval.duration_seconds,
+                interval.moving_duration_seconds,
+                interval.elapsed_duration_seconds,
+                interval.distance,
+                interval.average_speed,
+                interval.calories,
+                interval.bmr_calories,
+                interval.average_hr,
+                interval.max_hr,
+                interval.total_exercise_reps,
+                interval.message_index
+            ))
+        
+        # Batch insert all intervals
+        with db_manager.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.executemany("""
+                INSERT OR REPLACE INTO swimming_intervals (
+                    session_id, interval_type, start_time, end_time,
+                    duration_seconds, moving_duration_seconds, elapsed_duration_seconds,
+                    distance_meters, average_speed, calories, bmr_calories,
+                    average_hr, max_hr, total_exercise_reps, message_index
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, batch_data)
+            conn.commit()
+        
+        logger.info(f"Batch loaded {len(batch_data)} swimming intervals to database")
+        return len(batch_data)

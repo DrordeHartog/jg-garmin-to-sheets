@@ -107,6 +107,7 @@ class SwimmingLapsProcessor(BaseTableProcessor):
             lap_id=lap_data['lap_id'],
             interval_id=None,  # Will be set during load phase when we have interval mapping
             lap_index=lap_data.get('lap_index'),
+            wkt_step_index=lap_data.get('wkt_step_index'),
             start_time=start_time,
             distance=lap_data.get('distance'),
             duration=lap_data.get('duration'),  # Raw duration from API
@@ -143,6 +144,55 @@ class SwimmingLapsProcessor(BaseTableProcessor):
             return None
     
     async def load(self, data: List[SwimmingLap], db_manager: DatabaseManager) -> int:
-        """Load SwimmingLap into database."""
-        # TODO: Implement database insertion
-        return 0
+        """Load SwimmingLap data into database using batch insertion."""
+        if not data:
+            return 0
+        
+        # Prepare batch data for insertion
+        batch_data = []
+        for lap in data:
+            # Split lap_id to get session_id and lap_index
+            session_id, lap_index = lap.lap_id.split('_', 1)
+            
+            batch_data.append((
+                lap.lap_id,  # lap_id as primary key
+                session_id,  # session_id as foreign key
+                int(lap_index),  # Convert lap_index to int
+                lap.start_time.isoformat() if lap.start_time else None,
+                lap.distance,
+                lap.duration_seconds,
+                lap.moving_duration_seconds,
+                lap.elapsed_duration_seconds,
+                lap.average_speed,
+                lap.average_moving_speed,
+                lap.max_speed,
+                lap.calories,
+                lap.bmr_calories,
+                lap.average_hr,
+                lap.max_hr,
+                lap.average_swim_cadence,
+                lap.number_of_active_lengths,
+                lap.total_strokes,
+                lap.average_strokes,
+                lap.average_swolf,
+                lap.average_stroke_distance,
+                lap.swim_drill
+            ))
+
+        # Batch insert all laps
+        with db_manager.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.executemany("""
+                INSERT OR REPLACE INTO swimming_laps (
+                    lap_id, session_id, lap_index, start_time, distance_meters,
+                    duration_seconds, moving_duration_seconds, elapsed_duration_seconds,
+                    average_speed, average_moving_speed, max_speed, calories, bmr_calories,
+                    average_hr, max_hr, average_swim_cadence, number_of_active_lengths,
+                    total_strokes, average_strokes, average_swolf, average_stroke_distance, swim_drill
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, batch_data)
+            conn.commit()
+
+        logger.info(f"Batch loaded {len(batch_data)} swimming laps to database")
+        return len(batch_data)
+    

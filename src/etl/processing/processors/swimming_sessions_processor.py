@@ -143,6 +143,71 @@ class SwimmingSessionsProcessor(BaseTableProcessor):
     
     
     async def load(self, data: List[SwimmingSession], db_manager: DatabaseManager) -> int:
-        """Load SwimmingSession into database."""
-        # TODO: Implement database insertion
-        return 0
+        """Load SwimmingSession data into database using batch insertion."""
+        if not data:
+            return 0
+        
+        # Prepare batch data for insertion
+        batch_data = []
+        for session in data:
+            session_tuple = (
+                session.session_id,
+                session.activity_id,
+                session.date.isoformat() if session.date else None,
+                session.start_time.isoformat() if session.start_time else None,
+                session.end_time.isoformat() if session.end_time else None,
+                session.total_distance_meters,
+                session.total_duration_seconds,
+                session.pool_length_meters,
+                session.swim_activity_count,
+                session.pool_swim_count,
+                session.open_water_swim_count,
+                session.swim_laps,
+                session.active_lengths,
+                session.swim_average_pace_per_100m,
+                session.swim_max_pace_per_100m,
+                session.swim_average_speed,
+                session.swim_max_speed,
+                session.swim_average_hr,
+                session.swim_max_hr,
+                session.total_strokes,
+                session.swim_average_strokes_per_length,
+                session.swim_average_strokes_per_minute,
+                session.swim_cadence,
+                session.avg_swolf,
+                session.min_swolf,
+                session.max_swolf,
+                session.swim_zone1_time,
+                session.swim_zone2_time,
+                session.swim_zone3_time,
+                session.swim_zone4_time,
+                session.swim_zone5_time,
+                session.swim_calories,
+                session.swim_training_effect,
+                session.swim_anaerobic_training_effect
+            )
+            batch_data.append(session_tuple)
+            logger.debug(f"Session tuple length: {len(session_tuple)}, values: {session_tuple}")
+        
+        # Batch insert all sessions
+        with db_manager.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.executemany("""
+                INSERT OR REPLACE INTO swimming_sessions (
+                    session_id, activity_id, date, start_time, end_time,
+                    total_distance_meters, total_duration_seconds, pool_length_meters,
+                    swim_activity_count, pool_swim_count, open_water_swim_count,
+                    swim_laps, active_lengths, swim_average_pace_per_100m,
+                    swim_max_pace_per_100m, swim_average_speed, swim_max_speed,
+                    swim_average_hr, swim_max_hr, total_strokes,
+                    swim_average_strokes_per_length, swim_average_strokes_per_minute,
+                    swim_cadence, avg_swolf, min_swolf, max_swolf,
+                    swim_zone1_time, swim_zone2_time, swim_zone3_time,
+                    swim_zone4_time, swim_zone5_time, swim_calories,
+                    swim_training_effect, swim_anaerobic_training_effect
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, batch_data)
+            conn.commit()
+        
+        logger.info(f"Batch loaded {len(batch_data)} swimming sessions to database")
+        return len(batch_data)

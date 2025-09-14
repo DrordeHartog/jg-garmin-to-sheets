@@ -63,7 +63,13 @@ class BaseTableProcessor(ABC):
             
             # Load data
             logger.debug("Loading data to database...")
-            loaded_count = await self.load(transformed_data, db_manager)
+            # Check if load method accepts raw_data parameter
+            import inspect
+            sig = inspect.signature(self.load)
+            if 'raw_data' in sig.parameters:
+                loaded_count = await self.load(transformed_data, db_manager, raw_data)
+            else:
+                loaded_count = await self.load(transformed_data, db_manager)
             logger.info(f"Successfully loaded {loaded_count} records to database")
             
             return loaded_count
