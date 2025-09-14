@@ -6,7 +6,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 from typing import Optional, List, Dict, Any
-from datetime import date
+from datetime import date, datetime
 import json
 import os
 from pathlib import Path
@@ -94,10 +94,53 @@ class ETLOrchestrator:
             self.logger.error(f"Error stopping ETL Orchestrator: {e}")
             raise
         
-    async def trigger_etl_job(self, job_type: str, **kwargs) -> JobResult:
-        """Manually trigger an ETL job."""
-        # TODO: Implement manual job triggering
-        pass
+    async def trigger_etl_job(self, job_id: int, target_date: Optional[date] = None) -> JobResult:
+        """Manually trigger an ETL job by ID."""
+        try:
+            # Query job config from database
+            with self.db_manager.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT job_name, processor_class, description 
+                    FROM etl_job_config 
+                    WHERE job_id = ? AND is_active = 1
+                """, (job_id,))
+                job_config = cursor.fetchone()
+            
+            if not job_config:
+                return JobResult(
+                    job_id=f"manual_{job_id}",
+                    status=JobStatus.FAILED,
+                    start_time=datetime.now(),
+                    end_time=datetime.now(),
+                    duration_ms=0.0,
+                    records_processed=0,
+                    errors=[f"Job ID {job_id} not found or inactive"]
+                )
+            
+            job_name, processor_class, description = job_config
+            self.logger.info(f"Triggering job {job_id}: {job_name} - {description}")
+            
+            # Check if it's an orchestrator method or individual processor
+            if processor_class.startswith('execute_'):
+                # It's an orchestrator method (e.g., execute_swimming_etl)
+                method = getattr(self, processor_class)
+                return await method()
+            else:
+                # It's an individual processor (e.g., SwimmingSessionsProcessor)
+                return await self._run_individual_processor(processor_class, target_date)
+                
+        except Exception as e:
+            self.logger.error(f"Failed to trigger job {job_id}: {str(e)}")
+            return JobResult(
+                job_id=f"manual_{job_id}",
+                status=JobStatus.FAILED,
+                start_time=datetime.now(),
+                end_time=datetime.now(),
+                duration_ms=0.0,
+                records_processed=0,
+                errors=[f"Job trigger failed: {str(e)}"]
+            )
         
     async def schedule_etl_job(self, job_config: JobConfig) -> str:
         """Schedule a new ETL job."""
@@ -377,8 +420,247 @@ class ETLOrchestrator:
         
     async def execute_swimming_etl(self) -> JobResult:
         """Execute swimming data ETL job."""
-        # TODO: Implement swimming ETL execution
-        pass
+        try:
+            self.logger.info("Starting swimming ETL execution")
+            
+            # Initialize processors
+            processors = self._initialize_swimming_processors()
+            
+            # Get cached files
+            cached_files = self._get_cached_files()
+            if not cached_files:
+                return self._create_no_files_result()
+            
+            # Process all cached files
+            results = await self._process_cached_files(cached_files, processors)
+            
+            # Create final result
+            return self._create_swimming_etl_result(results)
+            
+        except Exception as e:
+            self.logger.error(f"Swimming ETL failed: {str(e)}")
+            return JobResult(
+                job_id="swimming_etl",
+                status=JobStatus.FAILED,
+                message=f"Swimming ETL failed: {str(e)}",
+                records_processed=0
+            )
+    
+    def _initialize_swimming_processors(self) -> Dict[str, Any]:
+        """Initialize swimming processors."""
+        from ..processing.processors.swimming_sessions_processor import SwimmingSessionsProcessor
+        from ..processing.processors.swimming_intervals_processor import SwimmingIntervalsProcessor
+        from ..processing.processors.swimming_laps_processor import SwimmingLapsProcessor
+        
+        return {
+            'sessions': SwimmingSessionsProcessor(),
+            'intervals': SwimmingIntervalsProcessor(),
+            'laps': SwimmingLapsProcessor()
+        }
+    
+    def _get_cached_files(self) -> List[Path]:
+        """Get all cached JSON files."""
+        return list(self.cache_dir.glob("*.json"))
+    
+    def _create_no_files_result(self) -> JobResult:
+        """Create result when no cached files found."""
+        self.logger.warning("No cached files found for swimming ETL")
+        return JobResult(
+            job_id="swimming_etl",
+            status=JobStatus.COMPLETED,
+            message="No cached files found",
+            records_processed=0
+        )
+    
+    async def _process_cached_files(self, cached_files: List[Path], processors: Dict[str, Any]) -> Dict[str, Any]:
+        """Process all cached files and return aggregated results."""
+        total_sessions = 0
+        total_intervals = 0
+        total_laps = 0
+        processed_dates = []
+        
+        for cache_file in cached_files:
+            try:
+                result = await self._process_single_cache_file(cache_file, processors)
+                if result:
+                    total_sessions += result['sessions']
+                    total_intervals += result['intervals']
+                    total_laps += result['laps']
+                    processed_dates.append(result['date'])
+                    
+            except Exception as e:
+                self.logger.error(f"Error processing {cache_file}: {str(e)}")
+                continue
+        
+        return {
+            'sessions': total_sessions,
+            'intervals': total_intervals,
+            'laps': total_laps,
+            'dates': processed_dates
+        }
+    
+    async def _process_single_cache_file(self, cache_file: Path, processors: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Process a single cached file."""
+        date_str = cache_file.stem
+        target_date = date.fromisoformat(date_str)
+        
+        self.logger.info(f"Processing swimming data for {date_str}")
+        
+        # Load cached data
+        with open(cache_file, 'r') as f:
+            raw_data = json.load(f)
+        
+        # Check if this file has swimming data
+        if 'swimming_data' not in raw_data or not raw_data['swimming_data'].get('activities'):
+            self.logger.info(f"No swimming data found in {date_str}")
+            return None
+        
+        # Execute ETL for each processor
+        sessions_count = await processors['sessions'].run(raw_data, target_date, self.db_manager)
+        intervals_count = await processors['intervals'].run(raw_data, target_date, self.db_manager)
+        laps_count = await processors['laps'].run(raw_data, target_date, self.db_manager)
+        
+        self.logger.info(f"Processed {date_str}: {sessions_count} sessions, {intervals_count} intervals, {laps_count} laps")
+        
+        return {
+            'date': date_str,
+            'sessions': sessions_count,
+            'intervals': intervals_count,
+            'laps': laps_count
+        }
+    
+    def _create_swimming_etl_result(self, results: Dict[str, Any]) -> JobResult:
+        """Create final swimming ETL result."""
+        total_records = results['sessions'] + results['intervals'] + results['laps']
+        message = f"Processed {len(results['dates'])} dates: {results['sessions']} sessions, {results['intervals']} intervals, {results['laps']} laps"
+        
+        self.logger.info(f"Swimming ETL completed: {message}")
+        
+        return JobResult(
+            job_id="swimming_etl",
+            status=JobStatus.COMPLETED,
+            message=message,
+            records_processed=total_records,
+            metadata={
+                "dates_processed": results['dates'],
+                "sessions": results['sessions'],
+                "intervals": results['intervals'],
+                "laps": results['laps']
+            }
+        )
+    
+    async def _run_individual_processor(self, processor_class: str, target_date: Optional[date] = None) -> JobResult:
+        """Run an individual processor with cached data."""
+        try:
+            # Dynamic import of processor class
+            module_name = processor_class.lower().replace('processor', '_processor')
+            # Fix for swimming processors
+            if 'swimming' in module_name:
+                module_name = module_name.replace('swimming', 'swimming_')
+            
+            if 'swimming' in module_name:
+                from ..processing.processors import swimming_sessions_processor, swimming_intervals_processor, swimming_laps_processor
+                module_map = {
+                    'swimming_sessions_processor': swimming_sessions_processor,
+                    'swimming_intervals_processor': swimming_intervals_processor,
+                    'swimming_laps_processor': swimming_laps_processor
+                }
+            else:
+                # Add other processor types here as needed
+                raise ValueError(f"Unknown processor type: {processor_class}")
+            
+            if module_name not in module_map:
+                raise ValueError(f"Module {module_name} not found in module_map")
+            
+            module = module_map[module_name]
+            processor_class_obj = getattr(module, processor_class)
+            processor = processor_class_obj()
+            
+            # Get cached files
+            if target_date:
+                # Process specific date
+                cache_file = self.cache_dir / f"{target_date.isoformat()}.json"
+                if not cache_file.exists():
+                    return JobResult(
+                        job_id=f"individual_{processor_class}",
+                        status=JobStatus.FAILED,
+                        start_time=datetime.now(),
+                        end_time=datetime.now(),
+                        duration_ms=0.0,
+                        records_processed=0,
+                        errors=[f"No cached data found for {target_date}"]
+                    )
+                cached_files = [cache_file]
+            else:
+                # Process all cached files
+                cached_files = list(self.cache_dir.glob("*.json"))
+                if not cached_files:
+                    return JobResult(
+                        job_id=f"individual_{processor_class}",
+                        status=JobStatus.FAILED,
+                        start_time=datetime.now(),
+                        end_time=datetime.now(),
+                        duration_ms=0.0,
+                        records_processed=0,
+                        errors=["No cached files found"]
+                    )
+            
+            total_records = 0
+            processed_dates = []
+            
+            # Process each cached file
+            for cache_file in cached_files:
+                try:
+                    date_str = cache_file.stem
+                    file_date = date.fromisoformat(date_str)
+                    
+                    self.logger.info(f"Processing {processor_class} for {date_str}")
+                    
+                    # Load cached data
+                    with open(cache_file, 'r') as f:
+                        raw_data = json.load(f)
+                    
+                    # Run processor
+                    records_count = await processor.run(raw_data, file_date, self.db_manager)
+                    total_records += records_count
+                    processed_dates.append(date_str)
+                    
+                    self.logger.info(f"Processed {date_str}: {records_count} records")
+                    
+                except Exception as e:
+                    self.logger.error(f"Error processing {cache_file} with {processor_class}: {str(e)}")
+                    continue
+            
+            message = f"Processed {processor_class} for {len(processed_dates)} dates: {total_records} records"
+            self.logger.info(message)
+            
+            return JobResult(
+                job_id=f"individual_{processor_class}",
+                status=JobStatus.COMPLETED,
+                start_time=datetime.now(),
+                end_time=datetime.now(),
+                duration_ms=0.0,
+                records_processed=total_records,
+                errors=[],
+                metadata={
+                    "processor": processor_class,
+                    "dates_processed": processed_dates,
+                    "target_date": target_date.isoformat() if target_date else None,
+                    "message": message
+                }
+            )
+            
+        except Exception as e:
+            self.logger.error(f"Failed to run individual processor {processor_class}: {str(e)}")
+            return JobResult(
+                job_id=f"individual_{processor_class}",
+                status=JobStatus.FAILED,
+                start_time=datetime.now(),
+                end_time=datetime.now(),
+                duration_ms=0.0,
+                records_processed=0,
+                errors=[f"Individual processor failed: {str(e)}"]
+            )
         
     async def execute_daily_summary_etl(self) -> JobResult:
         """Execute daily summary ETL job."""
