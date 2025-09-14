@@ -10,3 +10,5 @@ sqlalchemy>=1.4.0
 requests>=2.25.0
 flask>=2.0.0
 apscheduler>=3.9.0
+pydantic>=2.0.0
+great-expectations>=0.17.0
