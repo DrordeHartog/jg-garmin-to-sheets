@@ -6,7 +6,7 @@ from datetime import date
 from typing import Dict, Any, Optional
 
 from .base_processor import BaseTableProcessor, DatabaseManager
-from ....shared.models import RecoveryMetrics
+from shared.models import RecoveryMetrics
 
 
 class RecoveryProcessor(BaseTableProcessor):

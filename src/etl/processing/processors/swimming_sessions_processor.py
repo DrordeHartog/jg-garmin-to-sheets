@@ -7,7 +7,7 @@ from datetime import date, datetime
 from typing import Dict, Any, List, Optional
 
 from .base_processor import BaseTableProcessor, DatabaseManager
-from ....shared.models import SwimmingSession
+from shared.models import SwimmingSession
 from ..utils.swimming_utils import (
     convert_duration_to_seconds_and_hms,
     calculate_pace_per_100m_hms,

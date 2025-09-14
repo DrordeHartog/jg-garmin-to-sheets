@@ -7,7 +7,7 @@ from abc import ABC, abstractmethod
 from datetime import date
 from typing import Any, Dict
 
-from ....database.database_manager import DatabaseManager
+from database.database_manager import DatabaseManager
 
 # Make DatabaseManager available to child classes
 __all__ = ['BaseTableProcessor', 'DatabaseManager']

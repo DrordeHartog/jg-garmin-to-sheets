@@ -28,6 +28,7 @@ class NotificationConfig:
 class OrchestratorConfig:
     """Main configuration for ETL orchestrator."""
     database_path: str = "data/health_data.db"
+    cache_dir: str = "data/cache"
     metrics_db_path: str = "data/metrics.db"
     etl_jobs_db_path: str = "data/etl_jobs.db"
     webhook_port: int = 5000

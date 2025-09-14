@@ -11,7 +11,7 @@ import time
 from datetime import date, datetime
 from typing import Dict, List, Any, Optional
 
-from ...database.database_manager import DatabaseManager
+from database.database_manager import DatabaseManager
 from .processors import (
     DailySummaryProcessor, RecoveryProcessor, ActivitiesProcessor,
     SwimmingSessionsProcessor, SwimmingIntervalsProcessor, 

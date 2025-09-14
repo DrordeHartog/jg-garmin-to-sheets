@@ -7,7 +7,7 @@ from datetime import date
 from typing import Dict, Any, List
 
 from .base_processor import BaseTableProcessor, DatabaseManager
-from ....shared.models import SwimmingLength
+from shared.models import SwimmingLength
 
 logger = logging.getLogger(__name__)
 

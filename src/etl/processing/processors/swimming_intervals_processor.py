@@ -7,7 +7,7 @@ from datetime import date, datetime
 from typing import Dict, Any, List, Optional
 
 from .base_processor import BaseTableProcessor, DatabaseManager
-from ....shared.models import SwimmingInterval
+from shared.models import SwimmingInterval
 from ..utils.swimming_utils import convert_duration_to_seconds_and_hms
 
 logger = logging.getLogger(__name__)

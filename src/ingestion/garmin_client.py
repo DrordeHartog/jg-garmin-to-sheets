@@ -7,7 +7,7 @@ import garminconnect
 import json
 from garth.sso import resume_login
 import garth
-from ..exceptions import MFARequiredException
+from exceptions import MFARequiredException
 
 logger = logging.getLogger(__name__)
 
