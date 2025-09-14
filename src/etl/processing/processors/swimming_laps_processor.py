@@ -3,11 +3,12 @@ Processor for swimming_laps table.
 """
 
 import logging
-from datetime import date
-from typing import Dict, Any, List
+from datetime import date, datetime
+from typing import Dict, Any, List, Optional
 
 from .base_processor import BaseTableProcessor, DatabaseManager
 from ....shared.models import SwimmingLap
+from ..utils.swimming_utils import convert_duration_to_seconds_and_hms
 
 logger = logging.getLogger(__name__)
 
@@ -75,9 +76,71 @@ class SwimmingLapsProcessor(BaseTableProcessor):
         return laps
     
     def transform(self, data: List[Dict[str, Any]], target_date: date) -> List[SwimmingLap]:
-        """Transform to SwimmingLap models."""
-        # TODO: Implement transformation logic
-        return []
+        """Transform extracted data to SwimmingLapRecord models."""
+        transformed_laps = []
+        
+        for lap_data in data:
+            try:
+                transformed_lap = self._transform_single_lap(lap_data, target_date)
+                transformed_laps.append(transformed_lap)
+                logger.debug(f"Transformed lap {lap_data['lap_id']}")
+                
+            except Exception as e:
+                logger.error(f"Failed to transform lap {lap_data.get('lap_id', 'unknown')}: {str(e)}")
+                continue
+        
+        logger.info(f"Transformed {len(transformed_laps)} swimming laps for {target_date}")
+        logger.info(f"Transformed laps data: {transformed_laps}")
+        return transformed_laps
+    
+    def _transform_single_lap(self, lap_data: Dict[str, Any], target_date: date) -> SwimmingLap:
+        """Transform a single lap data dictionary to SwimmingLapRecord."""
+        # Parse datetime fields
+        start_time = self._parse_datetime(lap_data.get('start_time_gmt'), 'start_time_gmt')
+        
+        # Convert durations using shared utility
+        duration_seconds, duration_hms = convert_duration_to_seconds_and_hms(lap_data.get('duration'))
+        moving_duration_seconds, moving_duration_hms = convert_duration_to_seconds_and_hms(lap_data.get('moving_duration'))
+        elapsed_duration_seconds, elapsed_duration_hms = convert_duration_to_seconds_and_hms(lap_data.get('elapsed_duration'))
+        
+        return SwimmingLap(
+            lap_id=lap_data['lap_id'],
+            interval_id=None,  # Will be set during load phase when we have interval mapping
+            lap_index=lap_data.get('lap_index'),
+            start_time=start_time,
+            distance=lap_data.get('distance'),
+            duration=lap_data.get('duration'),  # Raw duration from API
+            duration_seconds=duration_seconds,  # Converted duration in seconds
+            moving_duration=lap_data.get('moving_duration'),  # Raw moving duration
+            moving_duration_seconds=moving_duration_seconds,  # Converted moving duration
+            elapsed_duration=lap_data.get('elapsed_duration'),  # Raw elapsed duration
+            elapsed_duration_seconds=elapsed_duration_seconds,  # Converted elapsed duration
+            average_speed=lap_data.get('average_speed'),
+            average_moving_speed=lap_data.get('average_moving_speed'),
+            max_speed=lap_data.get('max_speed'),
+            calories=lap_data.get('calories'),
+            bmr_calories=lap_data.get('bmr_calories'),
+            average_hr=lap_data.get('average_hr'),
+            max_hr=lap_data.get('max_hr'),
+            average_swim_cadence=lap_data.get('average_swim_cadence'),
+            number_of_active_lengths=lap_data.get('number_of_active_lengths'),
+            total_strokes=lap_data.get('total_strokes'),
+            average_strokes=lap_data.get('average_strokes'),
+            average_swolf=lap_data.get('average_swolf'),
+            average_stroke_distance=lap_data.get('average_stroke_distance'),
+            swim_drill=lap_data.get('swim_drill')
+        )
+    
+    def _parse_datetime(self, datetime_str: Optional[str], field_name: str) -> Optional[datetime]:
+        """Parse datetime string with error handling."""
+        if not datetime_str:
+            return None
+        
+        try:
+            return datetime.fromisoformat(datetime_str.replace('Z', '+00:00'))
+        except (ValueError, AttributeError):
+            logger.warning(f"Could not parse {field_name}: {datetime_str}")
+            return None
     
     async def load(self, data: List[SwimmingLap], db_manager: DatabaseManager) -> int:
         """Load SwimmingLap into database."""
