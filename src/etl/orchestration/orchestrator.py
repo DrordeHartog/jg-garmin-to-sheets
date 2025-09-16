@@ -112,30 +112,24 @@ class ETLOrchestrator:
             List of JobResult with execution status and details for each job
         """
         try:
-            # Get job IDs to execute
+            # Get all active job IDs
+            with self.database_client.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT job_id, is_active FROM etl_job_config 
+                    ORDER BY job_id
+                """)
+            # create a dict of job_id and is_active
+            activation_dict = {row[0][i]: row[1][i] for row in cursor.fetchall() for i in range(len(row[0]))}
             if job_ids is None:
-                # Get all active job IDs
-                with self.database_client.get_connection() as conn:
-                    cursor = conn.cursor()
-                    cursor.execute("""
-                        SELECT job_id FROM etl_job_config 
-                        WHERE is_active = 1 
-                        ORDER BY job_id
-                    """)
-                    job_ids = [row[0] for row in cursor.fetchall()]
-                
-                if not job_ids:
-                    logger.warning("No active jobs found in configuration")
-                    return []
-                
+                job_ids = [job_id for job_id in activation_dict if activation_dict[job_id]]
                 logger.info(f"Triggering all {len(job_ids)} active jobs: {job_ids}")
             else:
+                job_ids = [job_id for job_id in job_ids if job_id in activation_dict and activation_dict[job_id]]
                 logger.info(f"Triggering {len(job_ids)} specified jobs: {job_ids}")
             
             # Send batch start notification for multiple jobs
-            if self.discord_notifier and len(job_ids) > 1:
-                job_id_strings = [str(job_id) for job_id in job_ids]
-                self.discord_notifier.send_batch_start(job_id_strings, len(job_ids))
+            self._notify_batch_start(job_ids)
             
             # Execute all jobs
             results = []
@@ -288,3 +282,18 @@ class ETLOrchestrator:
         """Cancel a running or scheduled job."""
         # TODO: Implement job cancellation
         return False
+
+    async def _notify_missing_job_ids(self, job_ids: List[int]):
+        """Log missing job IDs (no Discord notification - these are config errors)."""
+        logger.warning(f"Missing job IDs: {job_ids}")
+
+    async def _notify_inactive_job_ids(self, job_ids: List[int]):
+        """Log inactive job IDs (no Discord notification - these are config errors)."""
+        logger.warning(f"Inactive job IDs: {job_ids}")
+
+    async def _notify_batch_start(self, job_ids: List[int]):
+        """Notify about batch start."""
+        logger.info(f"Triggering {len(job_ids)} specified jobs: {job_ids}")
+        if self.discord_notifier and len(job_ids) > 1:
+            job_id_strings = [str(job_id) for job_id in job_ids]
+            self.discord_notifier.send_batch_start(job_id_strings, len(job_ids))

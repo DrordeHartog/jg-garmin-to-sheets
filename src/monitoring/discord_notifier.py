@@ -357,3 +357,8 @@ class DiscordNotifier:
         except requests.exceptions.RequestException as e:
             print(f"Webhook test failed: {e}")
             return False
+
+# Removed send_missing_job_ids and send_inactive_job_ids methods
+# These are configuration errors that should be logged, not notified via Discord
+
+        
