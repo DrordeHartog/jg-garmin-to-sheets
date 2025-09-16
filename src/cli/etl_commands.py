@@ -7,9 +7,9 @@ import argparse
 from datetime import date
 from pathlib import Path
 from typing import List, Dict, Any
-from etl.orchestration.orchestrator import ETLOrchestrator
-from etl.orchestration.config import OrchestratorConfig, NotificationConfig
-from database.database_manager import DatabaseManager
+from src.etl.orchestration.orchestrator import ETLOrchestrator
+from src.etl.orchestration.config import OrchestratorConfig, NotificationConfig
+from src.database.database_manager import DatabaseManager
 
 class ETLCommands:
     """ETL-related CLI commands."""
