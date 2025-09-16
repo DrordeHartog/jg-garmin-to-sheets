@@ -176,6 +176,8 @@ class SwimmingLap:
     average_swolf: Optional[float] = None
     average_stroke_distance: Optional[float] = None
     swim_drill: Optional[str] = None  # DRILL, KICK, etc.
+    # Interval type information (from typed_splits)
+    interval_type: Optional[str] = None  # INTERVAL_WARMUP, INTERVAL_ACTIVE, INTERVAL_REST, INTERVAL_COOLDOWN
     lengths: Optional[List[SwimmingLength]] = None
 
 @dataclass
