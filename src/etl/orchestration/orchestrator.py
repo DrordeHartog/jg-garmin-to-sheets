@@ -13,6 +13,7 @@ from pathlib import Path
 from ..services.garmin_client import GarminClient
 from ..utils.cache_manager import CacheManager
 from .config import OrchestratorConfig, JobResult, JobStatus
+from monitoring.discord_notifier import DiscordNotifier
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +38,14 @@ class ETLOrchestrator:
         from ..services.database_client import DatabaseClient
         db_manager = DatabaseManager(config.database_path)
         self.database_client = DatabaseClient(db_manager)
+        
+        # Initialize Discord notifier if configured
+        self.discord_notifier = None
+        if config.notifications and config.notifications.enabled and config.notifications.webhook_url:
+            self.discord_notifier = DiscordNotifier(config.notifications)
+            logger.info("Discord notifications enabled")
+        else:
+            logger.info("Discord notifications disabled")
         
         logger.info(f"ETL Orchestrator initialized with cache_dir: {self.cache_dir}")
     
@@ -91,65 +100,91 @@ class ETLOrchestrator:
                 errors=[f"Job trigger failed: {str(e)}"]
             )
     
-    async def trigger_multiple_etl_jobs(self, job_ids: List[int], target_date: Optional[date] = None) -> List[JobResult]:
+    async def trigger_multiple_etl_jobs(self, job_ids: Optional[List[int]] = None, target_date: Optional[date] = None) -> List[JobResult]:
         """
-        Trigger multiple ETL jobs by ID using job configuration table.
+        Trigger multiple ETL jobs by ID or all active jobs.
         
         Args:
-            job_ids: List of job IDs from etl_job_config table
-            target_date: Optional target date for the jobs
-            
-        Returns:
-            List of JobResult with execution status and details for each job
-        """
-        results = []
-        
-        for job_id in job_ids:
-            result = await self.trigger_etl_job(job_id, target_date)
-            results.append(result)
-        
-        return results
-    
-    
-    async def trigger_all_active_jobs(self, target_date: Optional[date] = None) -> List[JobResult]:
-        """
-        Trigger all active ETL jobs.
-        
-        Args:
+            job_ids: List of job IDs from etl_job_config table. If None, triggers all active jobs.
             target_date: Optional target date for the jobs
             
         Returns:
             List of JobResult with execution status and details for each job
         """
         try:
-            # Get all active job IDs
-            with self.database_client.get_connection() as conn:
-                cursor = conn.cursor()
-                cursor.execute("""
-                    SELECT job_id FROM etl_job_config 
-                    WHERE is_active = 1 
-                    ORDER BY job_id
-                """)
-                active_job_ids = [row[0] for row in cursor.fetchall()]
+            # Get job IDs to execute
+            if job_ids is None:
+                # Get all active job IDs
+                with self.database_client.get_connection() as conn:
+                    cursor = conn.cursor()
+                    cursor.execute("""
+                        SELECT job_id FROM etl_job_config 
+                        WHERE is_active = 1 
+                        ORDER BY job_id
+                    """)
+                    job_ids = [row[0] for row in cursor.fetchall()]
+                
+                if not job_ids:
+                    logger.warning("No active jobs found in configuration")
+                    return []
+                
+                logger.info(f"Triggering all {len(job_ids)} active jobs: {job_ids}")
+            else:
+                logger.info(f"Triggering {len(job_ids)} specified jobs: {job_ids}")
             
-            if not active_job_ids:
-                logger.warning("No active jobs found in configuration")
-                return []
+            # Send batch start notification for multiple jobs
+            if self.discord_notifier and len(job_ids) > 1:
+                job_id_strings = [str(job_id) for job_id in job_ids]
+                self.discord_notifier.send_batch_start(job_id_strings, len(job_ids))
             
-            logger.info(f"Triggering all {len(active_job_ids)} active jobs: {active_job_ids}")
-            return await self.trigger_multiple_etl_jobs(active_job_ids, target_date)
+            # Execute all jobs
+            results = []
+            for job_id in job_ids:
+                result = await self.trigger_etl_job(job_id, target_date)
+                results.append(result)
+            
+            # Send batch complete notification for multiple jobs
+            if self.discord_notifier and len(job_ids) > 1:
+                batch_results = self._convert_results_for_notification(results)
+                self.discord_notifier.send_batch_complete(batch_results)
+            
+            return results
             
         except Exception as e:
-            logger.error(f"Failed to trigger all active jobs: {str(e)}")
+            logger.error(f"Failed to trigger multiple jobs: {str(e)}")
             return [JobResult(
-                job_id="all_active",
+                job_id="multiple_jobs",
                 status=JobStatus.FAILED,
                 start_time=datetime.now(),
                 end_time=datetime.now(),
                 duration_ms=0.0,
                 records_processed=0,
-                errors=[f"Failed to trigger all active jobs: {str(e)}"]
+                errors=[f"Failed to trigger multiple jobs: {str(e)}"]
             )]
+    
+    async def trigger_all_active_jobs(self, target_date: Optional[date] = None) -> List[JobResult]:
+        """
+        Trigger all active ETL jobs (convenience method).
+        
+        Args:
+            target_date: Optional target date for the jobs
+            
+        Returns:
+            List of JobResult with execution status and details for each job
+        """
+        return await self.trigger_multiple_etl_jobs(job_ids=None, target_date=target_date)
+    
+    def _convert_results_for_notification(self, results: List[JobResult]) -> List[Dict[str, Any]]:
+        """Convert JobResult objects to dict format expected by Discord notifier."""
+        batch_results = []
+        for result in results:
+            batch_results.append({
+                'status': 'success' if result.status == JobStatus.COMPLETED else 'failed',
+                'job_id': result.job_id,
+                'records_processed': result.records_processed,
+                'error': result.errors[0] if result.errors else None
+            })
+        return batch_results
     
     async def _run_job_by_config(self, processor_class: str, job_module: str, target_date: Optional[date], job_id: int) -> JobResult:
         """

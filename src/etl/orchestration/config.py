@@ -15,14 +15,6 @@ class RateLimit:
     backoff_multiplier: float = 2.0
     max_backoff_seconds: int = 300
 
-@dataclass
-class NotificationConfig:
-    """Configuration for notifications."""
-    discord_webhook_url: str = ""
-    enabled: bool = False  # Disabled by default
-    send_job_start: bool = True
-    send_job_success: bool = True
-    send_job_failure: bool = True
 
 @dataclass
 class OrchestratorConfig:
@@ -35,7 +27,7 @@ class OrchestratorConfig:
     max_concurrent_jobs: int = 3
     job_timeout: int = 3600
     rate_limits: Dict[str, RateLimit] = field(default_factory=dict)
-    notifications: NotificationConfig = field(default_factory=NotificationConfig)
+    notifications: 'NotificationConfig' = field(default_factory=lambda: None)
 
 class JobStatus(Enum):
     """Status of an ETL job."""

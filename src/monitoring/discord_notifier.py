@@ -171,6 +171,110 @@ class DiscordNotifier:
         }
         
         self._send_message(payload)
+    
+    def send_batch_start(self, job_ids: List[str], job_count: int, **metadata):
+        """Send batch job start notification."""
+        if not self.config.enabled:
+            return
+            
+        payload = {
+            "content": "🚀 **ETL Batch Started**",
+            "embeds": [{
+                "title": f"Processing {job_count} ETL Jobs",
+                "color": 3447003,  # Blue
+                "fields": [
+                    {"name": "Job Count", "value": str(job_count), "inline": True},
+                    {"name": "Job IDs", "value": f"`{', '.join(job_ids[:5])}{'...' if len(job_ids) > 5 else ''}`", "inline": False},
+                    {"name": "Started", "value": datetime.now().strftime("%H:%M:%S"), "inline": True}
+                ],
+                "timestamp": datetime.now().isoformat(),
+                "footer": {"text": "ETL Batch Monitor"}
+            }]
+        }
+        
+        self._send_message(payload)
+    
+    def send_batch_complete(self, results: List[Dict[str, Any]], **metadata):
+        """Send batch job completion notification."""
+        if not self.config.enabled:
+            return
+            
+        stats = self._calculate_batch_stats(results)
+        color = self._get_success_color(stats['success_rate'])
+        
+        payload = {
+            "content": "✅ **ETL Batch Complete**",
+            "embeds": [{
+                "title": f"Batch Complete - {stats['success_rate']:.1f}% Success",
+                "color": color,
+                "fields": [
+                    {"name": "Total Jobs", "value": str(stats['total_jobs']), "inline": True},
+                    {"name": "Successful", "value": str(stats['successful_jobs']), "inline": True},
+                    {"name": "Failed", "value": str(stats['failed_jobs']), "inline": True},
+                    {"name": "Records", "value": str(stats['total_records']), "inline": True},
+                    {"name": "Success Rate", "value": f"{stats['success_rate']:.1f}%", "inline": True},
+                    {"name": "Completed", "value": datetime.now().strftime("%H:%M:%S"), "inline": True}
+                ],
+                "timestamp": datetime.now().isoformat(),
+                "footer": {"text": "ETL Batch Monitor"}
+            }]
+        }
+        
+        # Add failed job details if any
+        if stats['failed_jobs'] > 0:
+            failed_details = self._get_failed_job_details(results)
+            if failed_details:
+                payload["embeds"][0]["fields"].append({
+                    "name": "Failed Jobs",
+                    "value": failed_details,
+                    "inline": False
+                })
+        
+        self._send_message(payload)
+    
+    def _calculate_batch_stats(self, results: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Calculate batch statistics."""
+        total_jobs = len(results)
+        successful_jobs = sum(1 for r in results if r.get('status') == 'success')
+        failed_jobs = total_jobs - successful_jobs
+        total_records = sum(r.get('records_processed', 0) for r in results)
+        success_rate = (successful_jobs / total_jobs * 100) if total_jobs > 0 else 0
+        
+        return {
+            'total_jobs': total_jobs,
+            'successful_jobs': successful_jobs,
+            'failed_jobs': failed_jobs,
+            'total_records': total_records,
+            'success_rate': success_rate
+        }
+    
+    def _get_success_color(self, success_rate: float) -> int:
+        """Get color based on success rate."""
+        if success_rate == 100:
+            return 65280  # Green
+        elif success_rate >= 80:
+            return 16776960  # Yellow
+        else:
+            return 15158332  # Red
+    
+    def _get_failed_job_details(self, results: List[Dict[str, Any]]) -> str:
+        """Get formatted failed job details."""
+        failed_details = []
+        for result in results:
+            if result.get('status') != 'success':
+                job_id = result.get('job_id', 'Unknown')
+                error = result.get('error', 'Unknown error')
+                failed_details.append(f"• {job_id}: {error}")
+        
+        if not failed_details:
+            return ""
+        
+        # Limit to 5 failed jobs to avoid message length issues
+        details = "\n".join(failed_details[:5])
+        if len(failed_details) > 5:
+            details += "..."
+        
+        return details
         
     def send_daily_summary(self, summary_data: Dict[str, Any]):
         """Send daily ETL summary."""
