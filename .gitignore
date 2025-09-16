@@ -47,3 +47,6 @@ build/
 dist/
 *.egg-info/*.db
 eda/
+
+# Test files
+tests/

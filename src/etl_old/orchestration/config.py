@@ -18,8 +18,8 @@ class RateLimit:
 @dataclass
 class NotificationConfig:
     """Configuration for notifications."""
-    discord_webhook_url: str = ""
-    enabled: bool = False  # Disabled by default
+    discord_webhook_url: str
+    enabled: bool = True
     send_job_start: bool = True
     send_job_success: bool = True
     send_job_failure: bool = True

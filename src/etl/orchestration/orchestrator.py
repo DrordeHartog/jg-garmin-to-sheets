@@ -1,107 +1,60 @@
 """
-Main ETL orchestrator with APScheduler integration.
+ETL Orchestrator.
+
+Coordinates and executes ETL jobs using job configuration table.
 """
 
-from apscheduler.schedulers.background import BackgroundScheduler
-from apscheduler.triggers.cron import CronTrigger
-from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
-from typing import Optional, List, Dict, Any
 from datetime import date, datetime
-import json
-import os
+from typing import Dict, Any, List, Optional
+import logging
+import importlib
 from pathlib import Path
-from .config import OrchestratorConfig, JobConfig, JobResult, JobStatus
-from .load_manager import LoadManager
-from .job_manager import JobManager
-from .webhook_api import WebhookAPI
+
+from ..services.garmin_client import GarminClient
+from ..utils.cache_manager import CacheManager
+from .config import OrchestratorConfig, JobResult, JobStatus
+
+logger = logging.getLogger(__name__)
+
 
 class ETLOrchestrator:
-    """Main orchestrator for ETL pipeline with scheduling and load management."""
+    """Main orchestrator for ETL pipeline."""
     
-    def __init__(self, config: OrchestratorConfig):
-        """Initialize the ETL orchestrator."""
-        self.config = config
-        self.scheduler = BackgroundScheduler()
-        self.load_manager = LoadManager(config.rate_limits)
-        self.job_manager = JobManager(config.max_concurrent_jobs)
-        self.webhook_api = WebhookAPI(self)
+    def __init__(self, config: Optional[OrchestratorConfig] = None):
+        from pathlib import Path
         
-        # Initialize database manager for ETL operations
+        # Use provided config or create default
+        if config is None:
+            config = OrchestratorConfig()
+        
+        self.config = config
+        self.cache_dir = Path(config.cache_dir)
+        self.garmin_client = GarminClient()
+        self.cache_manager = CacheManager(self.cache_dir)
+        
+        # Initialize database manager for job configuration queries
         from database.database_manager import DatabaseManager
         self.db_manager = DatabaseManager(config.database_path)
         
-        # Initialize recovery processor for ETL operations
-        from ..processing.processors.recovery_processor import RecoveryProcessor
-        self.recovery_processor = RecoveryProcessor()
-        
-        # Initialize Garmin client for data fetching
-        from ingestion.garmin_client import GarminClient
-        self.garmin_client = GarminClient()
-        
-        # Initialize cache directory and settings
-        self.cache_dir = Path(config.cache_dir) if hasattr(config, 'cache_dir') else Path("data/cache")
-        self.cache_dir.mkdir(parents=True, exist_ok=True)
-        self.max_cache_size_mb = 100  # 100MB cache limit
-        
-        # Setup logging
-        import logging
-        self.logger = logging.getLogger(__name__)
-        
-        self.logger.info(f"ETL Orchestrator initialized with database: {config.database_path}")
-        
-    async def start(self) -> None:
-        """Start the orchestrator and all services."""
-        try:
-            self.logger.info("Starting ETL Orchestrator...")
-            
-            # Database is already initialized in DatabaseManager.__init__
-            self.logger.info("Database ready")
-            
-            # Start scheduler (will be used in Step 4)
-            # self.scheduler.start()
-            # self.logger.info("Scheduler started")
-            
-            # Start webhook API (will be used in Step 5)
-            # await self.webhook_api.start_server()
-            # self.logger.info("Webhook API started")
-            
-            self.logger.info("ETL Orchestrator started successfully")
-            
-        except Exception as e:
-            self.logger.error(f"Failed to start ETL Orchestrator: {e}")
-            raise
-        
-    async def stop(self) -> None:
-        """Gracefully stop the orchestrator."""
-        try:
-            self.logger.info("Stopping ETL Orchestrator...")
-            
-            # Stop scheduler (will be used in Step 4)
-            # if self.scheduler.running:
-            #     self.scheduler.shutdown()
-            #     self.logger.info("Scheduler stopped")
-            
-            # Stop webhook API (will be used in Step 5)
-            # await self.webhook_api.stop_server()
-            # self.logger.info("Webhook API stopped")
-            
-            # Close database connections
-            # Database connections are managed by context managers, so no explicit cleanup needed
-            
-            self.logger.info("ETL Orchestrator stopped successfully")
-            
-        except Exception as e:
-            self.logger.error(f"Error stopping ETL Orchestrator: {e}")
-            raise
-        
+        logger.info(f"ETL Orchestrator initialized with cache_dir: {self.cache_dir}")
+    
     async def trigger_etl_job(self, job_id: int, target_date: Optional[date] = None) -> JobResult:
-        """Manually trigger an ETL job by ID."""
+        """
+        Trigger an ETL job by ID using job configuration table.
+        
+        Args:
+            job_id: Job ID from etl_job_config table
+            target_date: Optional target date for the job
+            
+        Returns:
+            JobResult with execution status and details
+        """
         try:
             # Query job config from database
             with self.db_manager.get_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute("""
-                    SELECT job_name, processor_class, description 
+                    SELECT job_name, processor_class, job_module, description 
                     FROM etl_job_config 
                     WHERE job_id = ? AND is_active = 1
                 """, (job_id,))
@@ -118,14 +71,14 @@ class ETLOrchestrator:
                     errors=[f"Job ID {job_id} not found or inactive"]
                 )
             
-            job_name, processor_class, description = job_config
-            self.logger.info(f"Triggering job {job_id}: {job_name} - {description}")
+            job_name, processor_class, job_module, description = job_config
+            logger.info(f"Triggering job {job_id}: {job_name} - {description}")
             
-            # Run the individual processor
-            return await self._run_individual_processor(processor_class, target_date)
+            # Dynamically load and run the job
+            return await self._run_job_by_config(processor_class, job_module, target_date, job_id)
                 
         except Exception as e:
-            self.logger.error(f"Failed to trigger job {job_id}: {str(e)}")
+            logger.error(f"Failed to trigger job {job_id}: {str(e)}")
             return JobResult(
                 job_id=f"manual_{job_id}",
                 status=JobStatus.FAILED,
@@ -135,439 +88,166 @@ class ETLOrchestrator:
                 records_processed=0,
                 errors=[f"Job trigger failed: {str(e)}"]
             )
+    
+    async def trigger_multiple_etl_jobs(self, job_ids: List[int], target_date: Optional[date] = None) -> List[JobResult]:
+        """
+        Trigger multiple ETL jobs by ID using job configuration table.
         
-    async def schedule_etl_job(self, job_config: JobConfig) -> str:
-        """Schedule a new ETL job."""
-        # TODO: Implement job scheduling
-        pass
+        Args:
+            job_ids: List of job IDs from etl_job_config table
+            target_date: Optional target date for the jobs
+            
+        Returns:
+            List of JobResult with execution status and details for each job
+        """
+        results = []
         
-    async def get_job_status(self, job_id: str) -> Optional[JobResult]:
-        """Get status of a specific job."""
-        # TODO: Implement job status retrieval
-        pass
+        for job_id in job_ids:
+            result = await self.trigger_etl_job(job_id, target_date)
+            results.append(result)
         
-    async def list_jobs(self) -> List[JobResult]:
-        """List all jobs (active and completed)."""
-        # TODO: Implement jobs listing
-        pass
+        return results
+    
+    
+    async def trigger_all_active_jobs(self, target_date: Optional[date] = None) -> List[JobResult]:
+        """
+        Trigger all active ETL jobs.
         
-    async def cancel_job(self, job_id: str) -> bool:
-        """Cancel a running or scheduled job."""
-        # TODO: Implement job cancellation
-        pass
+        Args:
+            target_date: Optional target date for the jobs
+            
+        Returns:
+            List of JobResult with execution status and details for each job
+        """
+        try:
+            # Get all active job IDs
+            with self.db_manager.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT job_id FROM etl_job_config 
+                    WHERE is_active = 1 
+                    ORDER BY job_id
+                """)
+                active_job_ids = [row[0] for row in cursor.fetchall()]
+            
+            if not active_job_ids:
+                logger.warning("No active jobs found in configuration")
+                return []
+            
+            logger.info(f"Triggering all {len(active_job_ids)} active jobs: {active_job_ids}")
+            return await self.trigger_multiple_etl_jobs(active_job_ids, target_date)
+            
+        except Exception as e:
+            logger.error(f"Failed to trigger all active jobs: {str(e)}")
+            return [JobResult(
+                job_id="all_active",
+                status=JobStatus.FAILED,
+                start_time=datetime.now(),
+                end_time=datetime.now(),
+                duration_ms=0.0,
+                records_processed=0,
+                errors=[f"Failed to trigger all active jobs: {str(e)}"]
+            )]
+    
+    async def _run_job_by_config(self, processor_class: str, job_module: str, target_date: Optional[date], job_id: int) -> JobResult:
+        """
+        Dynamically load and run a job based on configuration.
         
-    def schedule_daily_jobs(self) -> None:
-        """Schedule daily ETL jobs."""
-        # TODO: Implement daily job scheduling
-        pass
+        Args:
+            processor_class: Class name of the job
+            job_module: Module path of the job
+            target_date: Target date for the job
+            job_id: Job ID for logging
+            
+        Returns:
+            JobResult with execution status
+        """
+        try:
+            # Dynamically import the job module
+            module = importlib.import_module(job_module)
+            job_class_obj = getattr(module, processor_class)
+            
+            # Initialize job with required dependencies
+            job_instance = self._initialize_job(job_class_obj, target_date)
+            
+            # Run the job
+            start_time = datetime.now()
+            result = job_instance.run()
+            end_time = datetime.now()
+            duration_ms = (end_time - start_time).total_seconds() * 1000
+            
+            # Convert job result to JobResult
+            return JobResult(
+                job_id=f"job_{job_id}",
+                status=JobStatus.COMPLETED if result.get("status") == "success" else JobStatus.FAILED,
+                start_time=start_time,
+                end_time=end_time,
+                duration_ms=duration_ms,
+                records_processed=result.get("transformed_records", 0),
+                errors=result.get("error", []) if isinstance(result.get("error"), list) else [result.get("error")] if result.get("error") else [],
+                metadata=result
+            )
+            
+        except Exception as e:
+            logger.error(f"Failed to run job {processor_class} from {job_module}: {str(e)}")
+            return JobResult(
+                job_id=f"job_{job_id}",
+                status=JobStatus.FAILED,
+                start_time=datetime.now(),
+                end_time=datetime.now(),
+                duration_ms=0.0,
+                records_processed=0,
+                errors=[f"Job execution failed: {str(e)}"]
+            )
+    
+    def _initialize_job(self, job_class, target_date: Optional[date]):
+        """
+        Initialize a job instance with required dependencies.
         
-    def schedule_health_checks(self) -> None:
-        """Schedule system health checks."""
-        # TODO: Implement health check scheduling
-        pass
+        Args:
+            job_class: Job class to initialize
+            target_date: Target date for the job
+            
+        Returns:
+            Initialized job instance
+        """
+        # Determine job type and initialize with appropriate dependencies
+        job_name = job_class.__name__.lower()
         
+        if "garmin_api_data" in job_name:
+            # API to cache jobs need GarminClient and CacheManager
+            return job_class(target_date, self.garmin_client, self.cache_manager)
+        elif any(x in job_name for x in ["recovery", "swimming_sessions", "swimming_laps", "swimming_intervals"]):
+            # Cache to raw jobs need CacheManager and DatabaseManager
+            return job_class(target_date, self.cache_manager, self.db_manager)
+        elif "raw_to_processed" in job_name:
+            # Raw to processed jobs need DatabaseManager
+            return job_class(target_date, self.db_manager)
+        else:
+            # Default initialization
+            return job_class(target_date)
+    
     async def authenticate_garmin(self, email: str, password: str) -> bool:
         """Authenticate with Garmin API."""
         try:
-            self.logger.info("Authenticating with Garmin API")
             await self.garmin_client.authenticate(email, password)
-            self.logger.info("Garmin authentication successful")
+            logger.info("Garmin authentication successful")
             return True
         except Exception as e:
-            self.logger.error(f"Garmin authentication failed: {e}")
+            logger.error(f"Garmin authentication failed: {e}")
             return False
     
-    def _get_cache_file_path(self, target_date: date) -> Path:
-        """Get the cache file path for a given date."""
-        return self.cache_dir / f"{target_date}.json"
-    
-    def _load_from_cache(self, target_date: date) -> Optional[Dict[str, Any]]:
-        """Load raw data from cache if it exists."""
-        cache_file = self._get_cache_file_path(target_date)
-        if cache_file.exists():
-            try:
-                with open(cache_file, 'r') as f:
-                    raw_data = json.load(f)
-                self.logger.info(f"Loaded cached data for {target_date} ({cache_file.stat().st_size / 1024:.1f} KB)")
-                return raw_data
-            except Exception as e:
-                self.logger.warning(f"Failed to load cache for {target_date}: {e}")
-                return None
+    async def get_job_status(self, job_id: str) -> Optional[JobResult]:
+        """Get status of a specific job."""
+        # TODO: Implement job status retrieval from database
         return None
     
-    def _save_to_cache(self, target_date: date, raw_data: Dict[str, Any]) -> None:
-        """Save raw data to cache and manage cache size."""
-        cache_file = self._get_cache_file_path(target_date)
-        
-        try:
-            # Save to cache
-            with open(cache_file, 'w') as f:
-                json.dump(raw_data, f, indent=2)
-            
-            file_size_kb = cache_file.stat().st_size / 1024
-            self.logger.info(f"Cached data for {target_date} ({file_size_kb:.1f} KB)")
-            
-            # Check cache size and cleanup if needed
-            self._cleanup_cache_if_needed()
-            
-        except Exception as e:
-            self.logger.error(f"Failed to save cache for {target_date}: {e}")
+    async def list_jobs(self) -> List[JobResult]:
+        """List all jobs (active and completed)."""
+        # TODO: Implement jobs listing from database
+        return []
     
-    def _cleanup_cache_if_needed(self) -> None:
-        """Clean up cache files if total size exceeds limit."""
-        try:
-            # Calculate total cache size
-            total_size_mb = sum(f.stat().st_size for f in self.cache_dir.glob("*.json")) / (1024 * 1024)
-            
-            if total_size_mb > self.max_cache_size_mb:
-                self.logger.info(f"Cache size ({total_size_mb:.1f} MB) exceeds limit ({self.max_cache_size_mb} MB), cleaning up...")
-                
-                # Get all cache files sorted by modification time (oldest first)
-                cache_files = sorted(
-                    self.cache_dir.glob("*.json"),
-                    key=lambda f: f.stat().st_mtime
-                )
-                
-                # Remove oldest files until under limit
-                for cache_file in cache_files:
-                    if total_size_mb <= self.max_cache_size_mb * 0.8:  # Clean to 80% of limit
-                        break
-                    
-                    file_size_mb = cache_file.stat().st_size / (1024 * 1024)
-                    cache_file.unlink()
-                    total_size_mb -= file_size_mb
-                    self.logger.info(f"Removed old cache file: {cache_file.name}")
-                
-                self.logger.info(f"Cache cleanup complete. New size: {total_size_mb:.1f} MB")
-                
-        except Exception as e:
-            self.logger.error(f"Cache cleanup failed: {e}")
-    
-    async def _fetch_detailed_swimming_data(self, raw_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Fetch detailed swimming data for all swimming activities in the raw data."""
-        if not raw_data or 'activities' not in raw_data:
-            return raw_data
-        
-        # Find all swimming activities
-        swimming_activities = [
-            activity for activity in raw_data['activities'] 
-            if activity.get('activityType', {}).get('typeKey') == 'lap_swimming'
-        ]
-        
-        if not swimming_activities:
-            self.logger.info("No swimming activities found, skipping detailed data fetch")
-            return raw_data
-        
-        self.logger.info(f"Found {len(swimming_activities)} swimming activities, fetching detailed data...")
-        
-        # Fetch detailed data for each swimming activity
-        for i, activity in enumerate(swimming_activities):
-            activity_id = activity.get('activityId')
-            activity_name = activity.get('activityName', 'Unknown')
-            
-            if not activity_id:
-                self.logger.warning(f"Skipping swimming activity {i+1}: no activity ID")
-                continue
-            
-            try:
-                # Check rate limits before making API calls
-                if not await self.load_manager.can_make_request("garmin"):
-                    self.logger.warning("Rate limit reached, waiting...")
-                    await self.load_manager.wait_for_rate_limit("garmin")
-                
-                self.logger.info(f"Fetching detailed data for swimming activity: {activity_name} (ID: {activity_id})")
-                
-                # Fetch detailed swimming data using the already authenticated client
-                try:
-                    splits_data = self.garmin_client.client.get_activity_splits(activity_id)
-                    split_summaries = self.garmin_client.client.get_activity_split_summaries(activity_id)
-                    typed_splits = self.garmin_client.client.get_activity_typed_splits(activity_id)
-                    
-                    detailed_data = {
-                        'splits_data': splits_data,
-                        'split_summaries': split_summaries,
-                        'typed_splits': typed_splits
-                    }
-                except Exception as api_error:
-                    self.logger.error(f"API error fetching detailed data for {activity_name}: {api_error}")
-                    detailed_data = None
-                
-                # Record API request
-                await self.load_manager.record_request("garmin", detailed_data is not None)
-                
-                if detailed_data:
-                    # Add detailed data to the activity
-                    activity['detailed_swimming_data'] = detailed_data
-                    self.logger.info(f"Successfully fetched detailed data for {activity_name}")
-                else:
-                    self.logger.warning(f"No detailed data found for {activity_name}")
-                
-                # Add small delay to respect rate limits
-                import asyncio
-                await asyncio.sleep(1)
-                
-            except Exception as e:
-                self.logger.error(f"Failed to fetch detailed data for {activity_name} (ID: {activity_id}): {e}")
-                # Continue with other activities even if one fails
-                continue
-        
-        return raw_data
-
-    async def fetch_and_cache_raw_data(self, target_date: date) -> Optional[Dict[str, Any]]:
-        """Fetch raw data from Garmin API and cache it."""
-        # Check cache first
-        cached_data = self._load_from_cache(target_date)
-        if cached_data is not None:
-            return cached_data
-        
-        try:
-            # Check rate limits before making API calls
-            if not await self.load_manager.can_make_request("garmin"):
-                self.logger.warning("Rate limit reached, waiting...")
-                await self.load_manager.wait_for_rate_limit("garmin")
-            
-            # Fetch raw data from API
-            self.logger.info(f"Fetching raw data from API for {target_date}")
-            raw_data = await self.garmin_client._fetch_raw_data(target_date)
-            
-            # Record API request
-            await self.load_manager.record_request("garmin", raw_data is not None)
-            
-            if raw_data:
-                # Fetch detailed swimming data for all swimming activities
-                enhanced_raw_data = await self._fetch_detailed_swimming_data(raw_data)
-                
-                # Save enhanced data to cache
-                self._save_to_cache(target_date, enhanced_raw_data)
-                self.logger.info(f"Successfully fetched and cached enhanced raw data for {target_date}")
-                return enhanced_raw_data
-            else:
-                self.logger.warning(f"No raw data found for {target_date}")
-                return None
-                
-        except Exception as e:
-            self.logger.error(f"Failed to fetch raw data for {target_date}: {e}")
-            return None
-    
-    async def execute_recovery_etl(self, raw_data: Dict[str, Any], target_date: date) -> JobResult:
-        """Execute recovery data ETL job using cached raw data."""
-        from datetime import datetime
-        import time
-        
-        job_id = f"recovery_etl_{int(time.time())}"
-        start_time = datetime.now()
-        
-        try:
-            self.logger.info(f"Starting recovery ETL job {job_id} for date: {target_date}")
-            
-            if not raw_data:
-                self.logger.warning(f"No raw data available for recovery processing on {target_date}")
-                return JobResult(
-                    job_id=job_id,
-                    status=JobStatus.COMPLETED,
-                    start_time=start_time,
-                    end_time=datetime.now(),
-                    duration_ms=(datetime.now() - start_time).total_seconds() * 1000,
-                    records_processed=0,
-                    errors=["No raw data available"]
-                )
-            
-            # Transform: Process data using RecoveryProcessor
-            self.logger.info("Transforming recovery data")
-            extracted_data = self.recovery_processor.extract(raw_data, target_date)
-            transformed_data = self.recovery_processor.transform(extracted_data, target_date)
-            
-            # Load: Store data in database
-            self.logger.info("Loading recovery data to database")
-            records_processed = await self.recovery_processor.load(transformed_data, self.db_manager)
-            
-            end_time = datetime.now()
-            duration_ms = (end_time - start_time).total_seconds() * 1000
-            
-            self.logger.info(f"Recovery ETL job {job_id} completed successfully. Records processed: {records_processed}")
-            
-            return JobResult(
-                job_id=job_id,
-                status=JobStatus.COMPLETED,
-                start_time=start_time,
-                end_time=end_time,
-                duration_ms=duration_ms,
-                records_processed=records_processed,
-                errors=[]
-            )
-            
-        except Exception as e:
-            end_time = datetime.now()
-            duration_ms = (end_time - start_time).total_seconds() * 1000
-            
-            self.logger.error(f"Recovery ETL job {job_id} failed: {e}")
-            
-            return JobResult(
-                job_id=job_id,
-                status=JobStatus.FAILED,
-                start_time=start_time,
-                end_time=end_time,
-                duration_ms=duration_ms,
-                records_processed=0,
-                errors=[str(e)]
-            )
-        
-    
-    async def _run_individual_processor(self, processor_class: str, target_date: Optional[date] = None) -> JobResult:
-        """Run an individual processor with cached data."""
-        try:
-            # Initialize processor
-            processor = self._initialize_processor(processor_class)
-            
-            # Get cached files
-            cached_files = self._get_cached_files_for_processor(target_date)
-            if not cached_files:
-                return self._create_no_files_result(processor_class, target_date)
-            
-            # Process all cached files
-            results = await self._process_files_with_processor(cached_files, processor, processor_class)
-            
-            # Create final result
-            return self._create_processor_result(processor_class, results, target_date)
-            
-        except Exception as e:
-            self.logger.error(f"Failed to run individual processor {processor_class}: {str(e)}")
-            return self._create_processor_error_result(processor_class, str(e))
-    
-    def _initialize_processor(self, processor_class: str):
-        """Initialize a processor instance dynamically."""
-        module_name = processor_class.lower().replace('processor', '_processor')
-        # Fix for swimming processors
-        if 'swimming' in module_name:
-            module_name = module_name.replace('swimming', 'swimming_')
-        
-        if 'swimming' in module_name:
-            from ..processing.processors import swimming_sessions_processor, swimming_intervals_processor, swimming_laps_processor
-            module_map = {
-                'swimming_sessions_processor': swimming_sessions_processor,
-                'swimming_intervals_processor': swimming_intervals_processor,
-                'swimming_laps_processor': swimming_laps_processor
-            }
-        else:
-            # Add other processor types here as needed
-            raise ValueError(f"Unknown processor type: {processor_class}")
-        
-        if module_name not in module_map:
-            raise ValueError(f"Module {module_name} not found in module_map")
-        
-        module = module_map[module_name]
-        processor_class_obj = getattr(module, processor_class)
-        return processor_class_obj()
-    
-    def _get_cached_files_for_processor(self, target_date: Optional[date] = None) -> List[Path]:
-        """Get cached files for processing."""
-        if target_date:
-            # Process specific date
-            cache_file = self.cache_dir / f"{target_date.isoformat()}.json"
-            return [cache_file] if cache_file.exists() else []
-        else:
-            # Process all cached files
-            return list(self.cache_dir.glob("*.json"))
-    
-    def _create_no_files_result(self, processor_class: str, target_date: Optional[date] = None) -> JobResult:
-        """Create result when no cached files found."""
-        error_msg = f"No cached data found for {target_date}" if target_date else "No cached files found"
-        return JobResult(
-            job_id=f"individual_{processor_class}",
-            status=JobStatus.FAILED,
-            start_time=datetime.now(),
-            end_time=datetime.now(),
-            duration_ms=0.0,
-            records_processed=0,
-            errors=[error_msg]
-        )
-    
-    async def _process_files_with_processor(self, cached_files: List[Path], processor, processor_class: str) -> Dict[str, Any]:
-        """Process all cached files with the given processor."""
-        total_records = 0
-        processed_dates = []
-        
-        for cache_file in cached_files:
-            try:
-                result = await self._process_single_file_with_processor(cache_file, processor, processor_class)
-                if result:
-                    total_records += result['records']
-                    processed_dates.append(result['date'])
-                    
-            except Exception as e:
-                self.logger.error(f"Error processing {cache_file} with {processor_class}: {str(e)}")
-                continue
-        
-        return {
-            'total_records': total_records,
-            'processed_dates': processed_dates
-        }
-    
-    async def _process_single_file_with_processor(self, cache_file: Path, processor, processor_class: str) -> Optional[Dict[str, Any]]:
-        """Process a single cached file with the given processor."""
-        date_str = cache_file.stem
-        file_date = date.fromisoformat(date_str)
-        
-        self.logger.info(f"Processing {processor_class} for {date_str}")
-        
-        # Load cached data
-        with open(cache_file, 'r') as f:
-            raw_data = json.load(f)
-        
-        # Run processor
-        records_count = await processor.run(raw_data, file_date, self.db_manager)
-        
-        self.logger.info(f"Processed {date_str}: {records_count} records")
-        
-        return {
-            'date': date_str,
-            'records': records_count
-        }
-    
-    def _create_processor_result(self, processor_class: str, results: Dict[str, Any], target_date: Optional[date] = None) -> JobResult:
-        """Create final processor result."""
-        message = f"Processed {processor_class} for {len(results['processed_dates'])} dates: {results['total_records']} records"
-        self.logger.info(message)
-        
-        return JobResult(
-            job_id=f"individual_{processor_class}",
-            status=JobStatus.COMPLETED,
-            start_time=datetime.now(),
-            end_time=datetime.now(),
-            duration_ms=0.0,
-            records_processed=results['total_records'],
-            errors=[],
-            metadata={
-                "processor": processor_class,
-                "dates_processed": results['processed_dates'],
-                "target_date": target_date.isoformat() if target_date else None,
-                "message": message
-            }
-        )
-    
-    def _create_processor_error_result(self, processor_class: str, error_msg: str) -> JobResult:
-        """Create error result for processor failure."""
-        return JobResult(
-            job_id=f"individual_{processor_class}",
-            status=JobStatus.FAILED,
-            start_time=datetime.now(),
-            end_time=datetime.now(),
-            duration_ms=0.0,
-            records_processed=0,
-            errors=[f"Individual processor failed: {error_msg}"]
-        )
-        
-    async def execute_daily_summary_etl(self) -> JobResult:
-        """Execute daily summary ETL job."""
-        # TODO: Implement daily summary ETL execution
-        pass
-        
-    async def health_check(self) -> Dict[str, Any]:
-        """Perform system health check."""
-        # TODO: Implement health check
-        pass
-        
-    async def get_system_status(self) -> Dict[str, Any]:
-        """Get overall system status."""
-        # TODO: Implement system status
-        pass
+    async def cancel_job(self, job_id: str) -> bool:
+        """Cancel a running or scheduled job."""
+        # TODO: Implement job cancellation
+        return False
