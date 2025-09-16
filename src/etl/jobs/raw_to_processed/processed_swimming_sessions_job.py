@@ -13,9 +13,10 @@ from ..base_job import BaseETLJob
 class ProcessedSwimmingSessionsJob(BaseETLJob):
     """ETL job for processing raw swimming data into processed tables."""
     
-    def __init__(self, target_date: date):
+    def __init__(self, target_date: date, database_client):
         super().__init__(f"processed_swimming_sessions_{target_date}")
         self.target_date = target_date
+        self.database_client = database_client
     
     def extract(self) -> Dict[str, Any]:
         """Extract data from raw database tables."""

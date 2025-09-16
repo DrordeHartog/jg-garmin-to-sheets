@@ -14,11 +14,11 @@ from ...utils.cache_manager import CacheManager
 class Swimming_Laps_Job(BaseETLJob):
     """ETL job for processing swimming laps data from cache to raw tables."""
     
-    def __init__(self, target_date: date, cache_manager: CacheManager, db_manager):
+    def __init__(self, target_date: date, cache_manager: CacheManager, database_client):
         super().__init__(f"swimming_laps_cache_to_raw_{target_date}")
         self.target_date = target_date
         self.cache_manager = cache_manager
-        self.db_manager = db_manager
+        self.database_client = database_client
     
     def extract(self) -> Dict[str, Any]:
         """Extract swimming laps data from cache."""

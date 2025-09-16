@@ -32,9 +32,11 @@ class ETLOrchestrator:
         self.garmin_client = GarminClient()
         self.cache_manager = CacheManager(self.cache_dir)
         
-        # Initialize database manager for job configuration queries
+        # Initialize database client for job configuration queries
         from database.database_manager import DatabaseManager
-        self.db_manager = DatabaseManager(config.database_path)
+        from ..services.database_client import DatabaseClient
+        db_manager = DatabaseManager(config.database_path)
+        self.database_client = DatabaseClient(db_manager)
         
         logger.info(f"ETL Orchestrator initialized with cache_dir: {self.cache_dir}")
     
@@ -51,7 +53,7 @@ class ETLOrchestrator:
         """
         try:
             # Query job config from database
-            with self.db_manager.get_connection() as conn:
+            with self.database_client.get_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute("""
                     SELECT job_name, processor_class, job_module, description 
@@ -121,7 +123,7 @@ class ETLOrchestrator:
         """
         try:
             # Get all active job IDs
-            with self.db_manager.get_connection() as conn:
+            with self.database_client.get_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute("""
                     SELECT job_id FROM etl_job_config 
@@ -218,11 +220,11 @@ class ETLOrchestrator:
             # API to cache jobs need GarminClient and CacheManager
             return job_class(target_date, self.garmin_client, self.cache_manager)
         elif any(x in job_name for x in ["recovery", "swimming_sessions", "swimming_laps", "swimming_intervals"]):
-            # Cache to raw jobs need CacheManager and DatabaseManager
-            return job_class(target_date, self.cache_manager, self.db_manager)
+            # Cache to raw jobs need CacheManager and DatabaseClient
+            return job_class(target_date, self.cache_manager, self.database_client)
         elif "raw_to_processed" in job_name:
-            # Raw to processed jobs need DatabaseManager
-            return job_class(target_date, self.db_manager)
+            # Raw to processed jobs need DatabaseClient
+            return job_class(target_date, self.database_client)
         else:
             # Default initialization
             return job_class(target_date)
