@@ -51,3 +51,7 @@ eda/
 # Test files
 tests/
 data/
+.mypy_cache/
+.pytest_cache/
+*.egg-info/
+archive/.idea/
