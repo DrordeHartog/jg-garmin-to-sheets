@@ -5,7 +5,6 @@ Handles SQLite database connections, setup, and configuration.
 """
 
 import sqlite3
-import os
 from pathlib import Path
 from typing import Optional
 from contextlib import contextmanager
@@ -14,7 +13,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-class DatabaseManager:
+class SQLiteManager:
     """Manages SQLite database connections and operations."""
     
     def __init__(self, db_path: Optional[str] = None):
@@ -136,4 +135,4 @@ class DatabaseManager:
 
 
 # Global database manager instance
-db_manager = DatabaseManager()
+sqlite_manager = SQLiteManager()

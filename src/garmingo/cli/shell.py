@@ -11,10 +11,10 @@ from typing import List, Dict, Any
 from datetime import date, datetime
 import json
 
-from etl.orchestration.orchestrator import ETLOrchestrator
-from etl.orchestration.config import OrchestratorConfig
-from etl.services.database_client import DatabaseClient
-from database.database_manager import DatabaseManager
+from garmingo.etl.orchestration.orchestrator import ETLOrchestrator
+from garmingo.etl.orchestration.config import OrchestratorConfig
+from garmingo.etl.adapters.SQLiteClient import SQLiteClient
+from garmingo.database.SQLiteManager import SQLiteManager
 
 
 class ETLShell:
@@ -24,8 +24,8 @@ class ETLShell:
         """Initialize the ETL shell with orchestrator and database client."""
         self.config = OrchestratorConfig()
         self.orchestrator = ETLOrchestrator(self.config)
-        db_manager = DatabaseManager(self.config.database_path)
-        self.database_client = DatabaseClient(db_manager)
+        db_manager = SQLiteManager(self.config.database_path)
+        self.database_client = SQLiteClient(db_manager)
         self.running = True
         
         # Available commands
@@ -35,6 +35,7 @@ class ETLShell:
             'check-data': self._check_data,
             'pipeline-status': self._pipeline_status,
             'clear-cache': self._clear_cache,
+            'config': self._config_management,
             'help': self._show_help,
             'exit': self._exit,
             'quit': self._exit,
@@ -264,6 +265,14 @@ class ETLShell:
         print("     pipeline-status               - Show overall pipeline status")
         print("     clear-cache <date>            - Clear cache for a date")
         print()
+        print("   Configuration Management:")
+        print("     config list-metrics [source]  - List metrics configuration")
+        print("     config list-etl-jobs [type]   - List ETL job configuration")
+        print("     config add-metric             - Add new metric (interactive)")
+        print("     config add-etl-job            - Add new ETL job (interactive)")
+        print("     config disable-metric <id>    - Disable a metric")
+        print("     config enable-metric <id>     - Enable a metric")
+        print()
         print("   General:")
         print("     help                          - Show this help")
         print("     exit, quit                    - Exit the shell")
@@ -273,6 +282,123 @@ class ETLShell:
         print("     check-data raw_swimming_laps --date 2025-09-12 --limit 5")
         print("     pipeline-status")
     
+    def _config_management(self, args: List[str]):
+        """Configuration management commands."""
+        if not args:
+            print("❌ Usage: config <subcommand>")
+            print("Available subcommands:")
+            print("  list-metrics [source]     - List metrics configuration")
+            print("  list-etl-jobs [type]      - List ETL job configuration")
+            print("  add-metric                - Add a new metric (interactive)")
+            print("  add-etl-job               - Add a new ETL job (interactive)")
+            print("  disable-metric <id>       - Disable a metric")
+            print("  enable-metric <id>        - Enable a metric")
+            print("  disable-etl-job <job_id>  - Disable an ETL job")
+            print("  enable-etl-job <job_id>   - Enable an ETL job")
+            return
+        
+        subcommand = args[0].lower()
+        
+        if subcommand == "list-metrics":
+            self._list_metrics_config(args[1:] if len(args) > 1 else [])
+        elif subcommand == "list-etl-jobs":
+            self._list_etl_jobs_config(args[1:] if len(args) > 1 else [])
+        elif subcommand == "add-metric":
+            self._add_metric_interactive()
+        elif subcommand == "add-etl-job":
+            self._add_etl_job_interactive()
+        elif subcommand == "disable-metric":
+            if len(args) < 2:
+                print("❌ Usage: config disable-metric <metric_id>")
+                return
+            self._disable_metric(args[1])
+        elif subcommand == "enable-metric":
+            if len(args) < 2:
+                print("❌ Usage: config enable-metric <metric_id>")
+                return
+            self._enable_metric(args[1])
+        elif subcommand == "disable-etl-job":
+            if len(args) < 2:
+                print("❌ Usage: config disable-etl-job <job_id>")
+                return
+            self._disable_etl_job(args[1])
+        elif subcommand == "enable-etl-job":
+            if len(args) < 2:
+                print("❌ Usage: config enable-etl-job <job_id>")
+                return
+            self._enable_etl_job(args[1])
+        else:
+            print(f"❌ Unknown config subcommand: {subcommand}")
+    
+    def _list_metrics_config(self, args: List[str]):
+        """List metrics configuration."""
+        source = args[0] if args else None
+        
+        try:
+            # This would need to be async, but for now just show a placeholder
+            print("📊 Metrics Configuration:")
+            print("=" * 50)
+            if source:
+                print(f"Source: {source}")
+            else:
+                print("All sources")
+            print("\nℹ️  Metrics configuration listing requires async implementation")
+            print("   Use the populate script for now: python scripts/populate_metrics_config.py")
+            
+        except Exception as e:
+            print(f"❌ Error listing metrics: {str(e)}")
+    
+    def _list_etl_jobs_config(self, args: List[str]):
+        """List ETL jobs configuration."""
+        job_type = args[0] if args else None
+        
+        try:
+            print("⚙️ ETL Jobs Configuration:")
+            print("=" * 50)
+            if job_type:
+                print(f"Job Type: {job_type}")
+            else:
+                print("All job types")
+            print("\nℹ️  ETL jobs configuration listing requires async implementation")
+            print("   Use the database directly for now")
+            
+        except Exception as e:
+            print(f"❌ Error listing ETL jobs: {str(e)}")
+    
+    def _add_metric_interactive(self):
+        """Interactive metric addition."""
+        print("➕ Add New Metric (Interactive Mode)")
+        print("=" * 40)
+        print("ℹ️  Interactive metric addition requires async implementation")
+        print("   Use the populate script for now: python scripts/populate_metrics_config.py")
+    
+    def _add_etl_job_interactive(self):
+        """Interactive ETL job addition."""
+        print("➕ Add New ETL Job (Interactive Mode)")
+        print("=" * 40)
+        print("ℹ️  Interactive ETL job addition requires async implementation")
+        print("   Use the database directly for now")
+    
+    def _disable_metric(self, metric_id: str):
+        """Disable a metric."""
+        print(f"🔧 Disabling metric {metric_id}...")
+        print("ℹ️  Metric disable requires async implementation")
+    
+    def _enable_metric(self, metric_id: str):
+        """Enable a metric."""
+        print(f"🔧 Enabling metric {metric_id}...")
+        print("ℹ️  Metric enable requires async implementation")
+    
+    def _disable_etl_job(self, job_id: str):
+        """Disable an ETL job."""
+        print(f"🔧 Disabling ETL job {job_id}...")
+        print("ℹ️  ETL job disable requires async implementation")
+    
+    def _enable_etl_job(self, job_id: str):
+        """Enable an ETL job."""
+        print(f"🔧 Enabling ETL job {job_id}...")
+        print("ℹ️  ETL job enable requires async implementation")
+
     def _exit(self, args: List[str]):
         """Exit the shell."""
         print("👋 Goodbye!")

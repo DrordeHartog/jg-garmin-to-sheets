@@ -8,11 +8,11 @@ This package handles all database operations including:
 - Migrations
 """
 
-from .database_manager import DatabaseManager
+from .SQLiteManager import SQLiteManager
 from .schema import create_tables, drop_tables
 
 __all__ = [
-    'DatabaseManager',
+    'SQLiteManager',
     'create_tables',
     'drop_tables'
 ]

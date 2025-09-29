@@ -10,10 +10,10 @@ import logging
 import importlib
 from pathlib import Path
 
-from ..services.garmin_client import GarminClient
+from ...ingestion.clients.garmin_client import GarminClient
 from ..utils.cache_manager import CacheManager
 from .config import OrchestratorConfig, JobResult, JobStatus
-from monitoring.discord_notifier import DiscordNotifier
+from ...monitoring.discord_notifier import DiscordNotifier
 
 logger = logging.getLogger(__name__)
 
