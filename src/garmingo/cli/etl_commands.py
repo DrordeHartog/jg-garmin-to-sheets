@@ -24,7 +24,7 @@ class ETLCommands:
             cache_dir="data/cache",
             rate_limits={},
             max_concurrent_jobs=3,
-            notifications=NotificationConfig(discord_webhook_url="")
+            notifications=NotificationConfig(webhook_url="")
         )
         self.orchestrator = ETLOrchestrator(config)
     
