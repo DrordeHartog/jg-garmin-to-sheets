@@ -26,7 +26,7 @@ class SQLiteManager:
         if db_path is None:
             # Default database location in project root
             project_root = Path(__file__).parent.parent.parent
-            db_path = project_root / "data" / "swimming_analyzer.db"
+            db_path = project_root / "data" / "health_data.db"
         
         self.db_path = Path(db_path)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)

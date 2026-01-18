@@ -7,9 +7,9 @@ import argparse
 from datetime import date
 from pathlib import Path
 from typing import List, Dict, Any
-from src.etl.orchestration.orchestrator import ETLOrchestrator
-from src.etl.orchestration.config import OrchestratorConfig, NotificationConfig
-from src.database.database_manager import DatabaseManager
+from ..etl.orchestration.orchestrator import ETLOrchestrator
+from ..etl.orchestration.config import OrchestratorConfig, NotificationConfig
+from ..database.SQLiteManager import SQLiteManager
 
 class ETLCommands:
     """ETL-related CLI commands."""
@@ -20,8 +20,8 @@ class ETLCommands:
     async def initialize(self):
         """Initialize the orchestrator."""
         config = OrchestratorConfig(
-            database_path="../data/health_data.db",
-            cache_dir="../data/cache",
+            database_path="data/health_data.db",
+            cache_dir="data/cache",
             rate_limits={},
             max_concurrent_jobs=3,
             notifications=NotificationConfig(discord_webhook_url="")
@@ -35,7 +35,7 @@ class ETLCommands:
     
     def get_active_jobs(self) -> List[Dict[str, Any]]:
         """Get all active jobs from the config table."""
-        with DatabaseManager("../data/health_data.db").get_connection() as conn:
+        with SQLiteManager("data/health_data.db").get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
                 SELECT job_id, job_name, processor_class, description 
@@ -83,7 +83,7 @@ class ETLCommands:
                 tables_to_clear.add(processor_to_table[processor_class])
         
         if tables_to_clear:
-            with DatabaseManager("../data/health_data.db").get_connection() as conn:
+            with SQLiteManager("data/health_data.db").get_connection() as conn:
                 cursor = conn.cursor()
                 cleared_count = 0
                 for table in clearing_order:
@@ -178,7 +178,7 @@ class ETLCommands:
                     })
         else:
             # Process all dates, but one date at a time across all jobs
-            cached_files = list(Path("../data/cache").glob("*.json"))
+            cached_files = list(Path("data/cache").glob("*.json"))
             if not cached_files:
                 return {
                     'status': 'no_files',

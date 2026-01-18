@@ -9,9 +9,9 @@ from typing import Dict, Any, List, Optional
 import logging
 
 from ..base_job import BaseETLJob
-from ...services.database_client import DatabaseClient
+from ...adapters.SQLiteClient import SQLiteClient
 from ...utils.cache_manager import CacheManager
-from shared.models import SwimmingLap
+from ....shared.models import SwimmingLap
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 class Swimming_Laps_Job(BaseETLJob):
     """ETL job for processing swimming laps from cache to raw database."""
     
-    def __init__(self, target_date: date, cache_manager: CacheManager, database_client: DatabaseClient):
+    def __init__(self, target_date: date, cache_manager: CacheManager, database_client: SQLiteClient):
         super().__init__(f"swimming_laps_{target_date}")
         self.target_date = target_date
         self.cache_manager = cache_manager

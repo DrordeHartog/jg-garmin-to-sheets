@@ -24,7 +24,7 @@ def create_metrics_config_table(db_path: str = None) -> bool:
     if db_path is None:
         # Default database location
         project_root = Path(__file__).parent.parent.parent
-        db_path = project_root / "data" / "swimming_analyzer.db"
+        db_path = project_root / "data" / "health_data.db"
     
     try:
         with sqlite3.connect(str(db_path)) as conn:
@@ -88,7 +88,7 @@ def create_etl_job_config_table(db_path: str = None) -> bool:
     if db_path is None:
         # Default database location
         project_root = Path(__file__).parent.parent.parent
-        db_path = project_root / "data" / "swimming_analyzer.db"
+        db_path = project_root / "data" / "health_data.db"
     
     try:
         with sqlite3.connect(str(db_path)) as conn:

@@ -34,10 +34,10 @@ class ETLOrchestrator:
         self.cache_manager = CacheManager(self.cache_dir)
         
         # Initialize database client for job configuration queries
-        from database.database_manager import DatabaseManager
-        from ..services.database_client import DatabaseClient
-        db_manager = DatabaseManager(config.database_path)
-        self.database_client = DatabaseClient(db_manager)
+        from ...database.SQLiteManager import SQLiteManager
+        from ..adapters.SQLiteClient import SQLiteClient
+        db_manager = SQLiteManager(config.database_path)
+        self.database_client = SQLiteClient(db_manager)
         
         # Initialize Discord notifier if configured
         self.discord_notifier = None
@@ -116,11 +116,14 @@ class ETLOrchestrator:
             with self.database_client.get_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute("""
-                    SELECT job_id, is_active FROM etl_job_config 
+                    SELECT job_id, is_active FROM etl_job_config
                     ORDER BY job_id
                 """)
-            # create a dict of job_id and is_active
-            activation_dict = {row[0][i]: row[1][i] for row in cursor.fetchall() for i in range(len(row[0]))}
+                # create a dict of job_id and is_active
+                activation_dict = {}
+                for row in cursor.fetchall():
+                    job_id, is_active = row
+                    activation_dict[job_id] = bool(is_active)
             if job_ids is None:
                 job_ids = [job_id for job_id in activation_dict if activation_dict[job_id]]
                 logger.info(f"Triggering all {len(job_ids)} active jobs: {job_ids}")

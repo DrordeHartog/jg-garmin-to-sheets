@@ -128,9 +128,7 @@ class DatabaseMigration:
         logger.info("Creating processed table schemas...")
         
         # Import the processed schema functions
-        import sys
-        sys.path.append(str(Path(__file__).parent.parent.parent))
-        from database.processed_schema import create_processed_tables
+        from ...database.processed_schema import create_processed_tables
         
         # Create processed tables
         create_processed_tables(self.conn)

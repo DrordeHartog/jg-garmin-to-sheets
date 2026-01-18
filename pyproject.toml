@@ -21,4 +21,4 @@ dependencies = [
 where = ["src"]
 
 [project.scripts]
-garmingo = "garmingo.cli.etl_commands:etl"
+garmingo = "garmingo.cli.etl_commands:main"

@@ -17,6 +17,17 @@ class RateLimit:
 
 
 @dataclass
+class NotificationConfig:
+    """Configuration for Discord/webhook notifications."""
+    enabled: bool = False
+    webhook_url: Optional[str] = None
+    batch_notification_threshold: int = 2
+    notify_on_success: bool = True
+    notify_on_failure: bool = True
+    notify_on_start: bool = False
+
+
+@dataclass
 class OrchestratorConfig:
     """Main configuration for ETL orchestrator."""
     database_path: str = "data/health_data.db"
