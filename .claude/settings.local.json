@@ -3,7 +3,9 @@
     "allow": [
       "Bash(git -C /Users/drordehartog1/.claude-worktrees/health/eloquent-khayyam log --oneline)",
       "Bash(find:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(python3:*)"
     ]
   }
 }
