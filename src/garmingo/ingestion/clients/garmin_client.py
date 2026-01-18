@@ -97,15 +97,6 @@ class GarminClient:
             logger.error(f"Error fetching sleep data for {date_iso}: {str(e)}")
             return None
 
-    async def _fetch_activities_data(self, date_iso: str) -> Optional[List[Dict[str, Any]]]:
-        """Fetch activities data for a given date."""
-        try:
-                return await asyncio.get_event_loop().run_in_executor(
-                None, self.client.get_activities_by_date, date_iso, date_iso
-                )
-        except Exception as e:
-            logger.error(f"Error fetching activities data for {date_iso}: {str(e)}")
-            return None
 
     async def _fetch_summary_data(self, date_iso: str) -> Optional[Dict[str, Any]]:
         """Fetch user summary data for a given date."""
@@ -115,16 +106,6 @@ class GarminClient:
                 )
         except Exception as e:
             logger.error(f"Error fetching summary data for {date_iso}: {str(e)}")
-            return None
-
-    async def _fetch_training_status_data(self, date_iso: str) -> Optional[Dict[str, Any]]:
-        """Fetch training status data for a given date."""
-        try:
-                return await asyncio.get_event_loop().run_in_executor(
-                None, self.client.get_training_status, date_iso
-            )
-        except Exception as e:
-            logger.error(f"Error fetching training status data for {date_iso}: {str(e)}")
             return None
 
     async def _fetch_raw_data(self, target_date: date) -> Dict[str, Any]:
