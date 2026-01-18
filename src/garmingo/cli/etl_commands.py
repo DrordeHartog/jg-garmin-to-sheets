@@ -230,12 +230,16 @@ def create_etl_parser() -> argparse.ArgumentParser:
     """Create ETL argument parser."""
     parser = argparse.ArgumentParser(description='ETL Commands')
     subparsers = parser.add_subparsers(dest='command', help='Available commands')
-    
-    # All command
-    all_parser = subparsers.add_parser('all', help='Run all active ETL jobs')
+
+    # Ingest command (Stage 1: Garmin API → Cache)
+    ingest_parser = subparsers.add_parser('ingest', help='Ingest data from Garmin API to cache')
+    ingest_parser.add_argument('--date', type=str, required=True, help='Target date (YYYY-MM-DD format)')
+
+    # All command (Stage 2: Cache → Raw DB)
+    all_parser = subparsers.add_parser('all', help='Run all active ETL jobs (cache to raw DB)')
     all_parser.add_argument('--date', type=str, help='Target date (YYYY-MM-DD format)')
     all_parser.add_argument('--clear', action='store_true', help='Clear existing data before processing')
-    
+
     return parser
 
 async def main():
@@ -248,20 +252,49 @@ async def main():
         return
     
     etl_commands = ETLCommands()
-    
+
     try:
-        if args.command == 'all':
+        if args.command == 'ingest':
+            # Stage 1: Garmin API → Cache
+            await etl_commands.initialize()
+
+            # Parse target date
+            try:
+                target_date = date.fromisoformat(args.date)
+            except ValueError:
+                print(f"Error: Invalid date format: {args.date}. Use YYYY-MM-DD format.")
+                return
+
+            print(f"\n{'='*50}")
+            print(f"Garmin Data Ingestion (API → Cache)")
+            print(f"{'='*50}")
+            print(f"Target Date: {target_date}")
+            print(f"Triggering Garmin API data ingestion job...")
+
+            # Trigger job 41 (Garmin_API_Data_Job)
+            result = await etl_commands.orchestrator.trigger_etl_job(41, target_date)
+
+            status_icon = "✅" if result.status.value == 'completed' else "❌"
+            print(f"\n{status_icon} Ingestion Status: {result.status.value}")
+            print(f"Records Processed: {result.records_processed}")
+
+            if result.errors:
+                print(f"\nErrors:")
+                for error in result.errors:
+                    print(f"  - {error}")
+
+        elif args.command == 'all':
             result = await etl_commands.run_all_active_jobs(args.date, args.clear)
-            
+
             print(f"\n{'='*50}")
             print(f"ETL Execution Summary")
             print(f"{'='*50}")
             print(f"Status: {result['status']}")
             print(f"Message: {result['message']}")
-            
+
             if 'total_records' in result:
                 print(f"Total Records: {result['total_records']}")
-            
+
             if result['results']:
                 print(f"\nJob Results:")
                 for job_result in result['results']:
@@ -270,7 +303,7 @@ async def main():
                     if job_result['errors']:
                         for error in job_result['errors']:
                             print(f"    Error: {error}")
-    
+
     finally:
         await etl_commands.cleanup()
 
